@@ -212,7 +212,7 @@ export function formatShortcut(string) {
 
 	for (var i = 0; i < strings.length; i++) {
 		newString += shortcutDict[strings[i]] ?? strings[i];
-		console.log('Request: ' + strings[i] + ' Got: ' + shortcutDict[strings[i]] ?? strings[i]);
+		// console.log('Request: ' + strings[i] + ' Got: ' + shortcutDict[strings[i]] ?? strings[i]);
 	}
 
 	return newString;

@@ -21,6 +21,8 @@ var _autosave = true;
 var currentCardId = undefined;
 var _registerShortcut = false;
 
+var data = {};
+
 var ID = function () {
 	return '_' + Math.random().toString(36).substr(2, 9);
 };
@@ -34,9 +36,9 @@ document.onreadystatechange = () => {
 
 function init() {
 	try {
-		var obj = JSON.parse(fs.readFileSync(jsonPath));
-		loadSettings(obj);
-		loadSounds(obj);
+		data = JSON.parse(fs.readFileSync(jsonPath));
+		loadSettings(data);
+		loadSounds(data);
 
 		// set up context menu
 		createContextMenu();
@@ -71,6 +73,21 @@ function init() {
 				_autosave = false;
 			}
 		});
+
+		document.getElementById('searchbar').addEventListener('input', (event) => {
+			if (event.target.value != '') {
+				search(event.target.value);
+
+				event.target.setAttribute('open', 'true');
+			} else {
+				event.target.setAttribute('open', 'false');
+
+				var playercards = document.getElementsByClassName('playercard');
+				for (const playercard of playercards) {
+					playercard.style.order = '';
+				}
+			}
+		});
 	} catch (error) {
 		console.log(error);
 	}
@@ -95,15 +112,18 @@ function loadSettings(obj) {
 function loadSounds(obj) {
 	if (obj.hasOwnProperty('files')) {
 		for (var i = 0; i < obj.files.length; i++) {
-			let unicardID = ID();
+			let cardID = ID();
+			Object.assign(obj.files[i], {
+				cardID: cardID,
+			});
 			let cardname = obj.files[i].name;
 			let path = obj.files[i].path;
 			let volume = obj.files[i].volume;
 			let shortcut = obj.files[i].shortcut;
 
-			createcard(unicardID, cardname, path, volume);
+			createcard(cardID, cardname, path, volume);
 			if (shortcut && shortcut.length > 0) {
-				addAudioShortcut(unicardID, shortcut);
+				addAudioShortcut(cardID, shortcut);
 			}
 
 			console.log(obj.files[i].name);
@@ -190,6 +210,53 @@ function removeCard(CardIDRC) {
 	}
 }
 
+function search(string) {
+	var searchTerm = string.toLowerCase();
+	var results = [];
+
+	var words = searchTerm.split(' ').filter((i) => i); // filter to remove empty elements
+
+	for (let index = 0; index < data.files.length; index++) {
+		const element = data.files[index];
+
+		var result = {
+			cardID: element.cardID,
+			name: element.name,
+			matches: 0,
+		};
+		var cardname = element.name.toLowerCase();
+		var matchFound = false;
+
+		for (let j = 0; j < words.length; j++) {
+			if (cardname.includes(words[j])) {
+				matchFound = true;
+				let wordIndex = cardname.indexOf(words[j]);
+				result.matches += wordIndex;
+			} else {
+				result.matches += 99;
+			}
+		}
+		if (matchFound) results.push(result);
+	}
+
+	results.sort((a, b) => {
+		return a.matches - b.matches;
+	});
+
+	var playercards = document.getElementsByClassName('playercard');
+	for (const playercard of playercards) {
+		playercard.style.order = '';
+	}
+
+	for (let index = 0; index < results.length; index++) {
+		const element = results[index];
+		let playercard = document.getElementById(element.cardID);
+		if (playercard) {
+			playercard.style.order = -results.length + index;
+		}
+	}
+}
+
 function createcard(cardID, filename, audiopath, volume = 1.0) {
 	var parentlocation = document.getElementById('cardwidget');
 	var audioID = cardID + 'audio';
@@ -221,7 +288,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0) {
 	playercard.onmouseenter = function () {
 		if (!_registerShortcut) {
 			currentCardId = playercard.getAttribute('id');
-			console.log('entered: ' + currentCardId);
+			// console.log('entered: ' + currentCardId);
 			if (contextMenu != undefined) {
 				contextMenu.getMenuItemById('setShortcut').enabled = true;
 				contextMenu.getMenuItemById('removeShortcut').enabled = true;
@@ -231,7 +298,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0) {
 
 	playercard.onmouseleave = function () {
 		if (!_registerShortcut) {
-			console.log('left');
+			// console.log('left');
 			currentCardId = undefined;
 			if (contextMenu != undefined) {
 				contextMenu.getMenuItemById('setShortcut').enabled = false;
@@ -636,19 +703,46 @@ function openFile() {
 
 function addFiles(files) {
 	for (const f of files) {
-		var unicardID = ID();
+		var cardID = ID();
 		var cardname = f.name;
-		cardname = cardname.replace('.mp3', '');
-		createcard(unicardID, cardname, f.path);
+		console.log(cardname);
+		// cardname = cardname.replace('.mp3', '');
+		cardname = cardname.substr(0, cardname.lastIndexOf('.')) || cardname;
+		console.log(cardname);
+		cardname = cardname.replace(/-|_|\+|\* /g, ' ');
+		console.log(cardname);
+
+		let newFile = {
+			cardID: cardID,
+			name: cardname,
+			path: f.path,
+			volume: 1,
+			shortcut: '',
+		};
+
+		data.files.push(newFile);
+
+		createcard(cardID, cardname, f.path);
 		if (_autosave) writeAudioJSON();
 	}
 }
 
 function addFilesFromPaths(filePaths) {
 	filePaths.forEach((path) => {
-		var unicardID = ID();
+		var cardID = ID();
 		var cardname = path.replace(/^.*[\\\/]/, '').split('.')[0];
-		createcard(unicardID, cardname, path);
+
+		let newFile = {
+			cardID: cardID,
+			name: cardname,
+			path: path,
+			volume: 1,
+			shortcut: '',
+		};
+
+		data.files.push(newFile);
+
+		createcard(cardID, cardname, path);
 		if (_autosave) writeAudioJSON();
 	});
 }

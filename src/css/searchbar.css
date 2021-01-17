@@ -54,7 +54,8 @@
 	overflow: hidden;
 }
 
-.searchbar:focus {
+.searchbar:focus,
+.searchbar[open='true'] {
 	border: var(--expanded-border-width) solid var(--input-border);
 	outline: none;
 	height: 22px;
@@ -64,7 +65,16 @@
 	text-indent: 0%;
 }
 
-.searchbar:focus ~ .searchbar-line {
+.searchbar:focus ~ .searchbar-line,
+.searchbar[open='true'] ~ .searchbar-line {
 	height: 0px;
 	transition: height 0.1s ease-in-out;
+}
+
+.searchbar::-webkit-search-cancel-button {
+	/* -webkit-appearance: none; */
+	cursor: pointer;
+	margin-right: -5px;
+	color: #fff;
+	background-color: #fff;
 }
