@@ -1,0 +1,44 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="loaderstylesheet.css">
+    </head>
+    <body onload="progressbarmove()">
+        <div class="maincontent">
+            <div class="titlewrapper">
+                <div class="title">
+                    <strong><p>Wood fired pizza!</p></strong>
+                </div>
+
+                <div class="subtitle">
+                    <p>How will pizza get a job now?</p>
+                </div>
+            </div>
+
+            <div class="loadingwrapper">
+                <div class="loadingbar">
+                    <div id="progressbarjs" class="loadingbarprogress"></div>
+                </div>
+            </div>
+
+            <div class="copyright">
+                <p>Developed by TitusStudios / www.titusstudios.net</p>
+            </div>
+        </div>
+
+        <script>
+            function progressbarmove() {
+                var elem = document.getElementById("progressbarjs");
+                var width = 1;
+                var id = setInterval(frame, (200-(Math.floor(Math.random() * 40))));
+                function frame() {
+                if (width >= 100) {
+                    clearInterval(id);
+                } else {
+                    width++;
+                    elem.style.width = width + '%';
+                }
+                }
+            }
+        </script>
+    </body>
+</html>

@@ -1,0 +1,65 @@
+.toggle-container {
+	display: inline-block;
+	width: 60px;
+	height: 30px;
+	/* border: 1px solid #fff; */
+	border-radius: 30px;
+	position: relative;
+	cursor: pointer;
+	background-color: #f5f2f2;
+	transition: border-color 300ms;
+}
+.toggle-container .real-checkbox {
+	position: absolute;
+	clip: rect(0, 0, 0, 0);
+}
+.toggle-container .real-checkbox + .toggle-button {
+	position: absolute;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	border-radius: 30px;
+	transition: all 300ms;
+}
+.toggle-container .real-checkbox + .toggle-button::before {
+	content: '';
+	cursor: pointer;
+	display: inline-block;
+	width: 30px;
+	height: 30px;
+	background-color: white;
+	border-radius: 50%;
+	box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+	transition: all 300ms ease-in-out;
+}
+.toggle-container .real-checkbox:checked + .toggle-button {
+	background-color: #32db64;
+}
+.toggle-container .real-checkbox:checked + .toggle-button::before {
+	margin-left: 30px;
+}
+
+.togglewrapper {
+	width: fit-content;
+	height: 30px;
+	padding: 10px;
+	display: inline-block;
+	/* background: #fff;
+	border-radius: 9px;
+	display: block;
+	position: relative; */
+}
+
+.togglewrapper .toggletext {
+	font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+	color: #fff;
+	text-shadow: 2px 2px #8a8a8a;
+	line-height: 30px;
+	font-size: 22px;
+	font-weight: 500;
+	display: inline-block;
+	vertical-align: top;
+	position: relative;
+	margin-left: 5px;
+}

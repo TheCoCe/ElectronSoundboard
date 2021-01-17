@@ -1,0 +1,100 @@
+<html>
+    <head>
+        <link rel="stylesheet" href="css/controls.css">
+        <link rel="stylesheet" href="css/stylesheet.css">
+        <link rel="stylesheet" href="css/checkbox.css">
+        <link rel="stylesheet" href="css/searchbar.css">
+        <!-- <script src="https://www.titusstudios.net/data/static/js/jquery/3.4.1/jquery.min.js"></script> -->
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css">
+
+    </head>
+    <body>
+        <div class="winctrlcontainer" id="windowcotrolcontainer">
+            <div class="winctrlbuttoncontainer">
+                <div align="right" class="winctrlbuttonwrapper">
+                    <div class="searchbarwrapper">
+                        <label for="searchbar" class="searchbarlable">
+                            <input type="text" id="searchbar" class="searchbar" onfocus="var temp_value=this.value; this.value=''; this.value=temp_value"/>
+                            <div class="searchbar-line"></div>
+                        </label>
+                    </div>
+                    <div id="layout-btn" class="winctrlbuttonlayout">
+                        <i id="layout-icon" class="Fas fa-th"></i>
+                    </div>
+                    <div id="min-btn" class="winctrlbuttonmin">
+                        <i class="Far fa-window-minimize"></i>
+                    </div>
+                    <div id="max-btn" class="winctrlbuttonmax">
+                        <i class="Far fa-window-maximize"></i>
+                    </div>
+                    <div id="close-btn" class="winctrlbuttonclose">
+                        <i class="Far fa-window-close"></i>
+                    </div>
+                </div>
+                <div align="left" class="appname">
+                    <p>SOUNDBOARD</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="appwidget">
+            <div class="confirmdelete">
+                <div class="confirmdeletetextwrapper">
+                    <div class="confirmdeletetext">
+                        <strong><p>Are you sure you want to Delete this Card?</p></strong>
+                        <div class="confirmdeletesubtext">
+                            <p>This cannot be undone</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="playerwrapper" id="cardwidget">
+
+            </div>
+        </div>
+        
+        <footer>
+            <div class="footerwrapper" id="footerwrapper">
+                <!-- <div class="footerline"></div> -->
+
+                <div class="section first">
+                    <div class="togglewrapper">
+                        <label for="stopsoundtoggle" class="toggle-container">
+                            <input type="checkbox" id="stopsoundtoggle" class="real-checkbox"></input>
+                            <div class="toggle-button"></div>
+                        </label>
+                        <span class="toggletext">Multisound mode</span>
+                    </div>
+                    <div class="togglewrapper">
+                        <label for="autosavetoggle" class="toggle-container">
+                            <input type="checkbox" id="autosavetoggle" class="real-checkbox"></input>
+                            <div class="toggle-button"></div>
+                        </label>
+                        <span class="toggletext">Autosave</span>
+                    </div>
+                </div>
+                <!-- <div class="section second"></div> -->
+
+                <!-- <div class="devbuild">
+                    <i title="You are running a Development Build, bugs may be present." class="fab fa-dev"></i>
+                    <div class="devbuildtext">
+                        <p>You are running a Development Build, bugs may be present.</p>
+                    </div>
+
+                    <div class="copyright">
+                        <p>Copyright © 2020 Titus Studios Media</p>
+                    </div>
+                </div> -->
+
+                <!-- <select name="audio-devices" id="audioDevices"> -->
+                    
+                </select>
+
+            </div>
+        </footer>
+
+        <script type="module" src="js/content.js"></script>
+        <script src="js/menuHandler.js"></script>
+    </body>
+</html>

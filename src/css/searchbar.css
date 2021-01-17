@@ -1,0 +1,70 @@
+:root {
+	--input-border: #fff;
+	--collapsed-border-width: 3px;
+	--expanded-border-width: 1px;
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+.searchbarwrapper {
+	display: inline-block;
+	height: 36px;
+	vertical-align: top;
+	/* margin-right: 5px; */
+}
+
+.searchbarlable {
+	display: block;
+	height: 36px;
+	padding-right: 5px;
+	cursor: text;
+}
+
+.searchbar-line {
+	width: var(--collapsed-border-width);
+	height: 8px;
+	position: relative;
+	top: -4px;
+	left: 1px;
+	background-color: #fff;
+	transform: rotate(-45deg);
+	border-radius: var(--collapsed-border-width);
+	transition: height 0.1s ease-in-out;
+}
+
+.searchbar {
+	font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+	font-size: 16px;
+	border-radius: 22px;
+	line-height: 1;
+	color: #fff;
+	border: var(--collapsed-border-width) solid var(--input-border);
+	background: none;
+	height: 16px;
+	width: 16px;
+	margin-top: 7px;
+	transition: width 0.2s ease-in-out, border 0.1s ease-in-out, height 0.1s;
+	/* Hide text */
+	text-indent: 100%;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.searchbar:focus {
+	border: var(--expanded-border-width) solid var(--input-border);
+	outline: none;
+	height: 22px;
+	width: 200px;
+	padding: 0px 10px;
+	transition: width 0.2s ease-in-out, border 0.1s ease-in-out, height 0.1s;
+	text-indent: 0%;
+}
+
+.searchbar:focus ~ .searchbar-line {
+	height: 0px;
+	transition: height 0.1s ease-in-out;
+}
