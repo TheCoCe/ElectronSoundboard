@@ -398,7 +398,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0) {
 
 	audio.append(source);
 	source.setAttribute('src', audiopath);
-	source.setAttribute('type', 'audio/mpeg');
+	source.setAttribute('type', 'audio/' + getAudioFileTypeFromPath(audiopath));
 	source.setAttribute('id', audiosourceID);
 
 	// Audio Stuff
@@ -703,6 +703,8 @@ function openFile() {
 
 function addFiles(files) {
 	for (const f of files) {
+		if (!validFile(f.path)) continue;
+
 		var cardID = ID();
 		var cardname = f.name;
 		console.log(cardname);
@@ -729,6 +731,8 @@ function addFiles(files) {
 
 function addFilesFromPaths(filePaths) {
 	filePaths.forEach((path) => {
+		if (!validFile(path)) return;
+
 		var cardID = ID();
 		var cardname = path.replace(/^.*[\\\/]/, '').split('.')[0];
 
@@ -784,4 +788,39 @@ function stopAllSounds() {
 			audioElements[index].pause();
 		}
 	}
+}
+
+function validFile(path) {
+	let allowedExtensions = /(\.mp3|\.wav|\.ogg)$/i;
+	if (allowedExtensions.exec(path)) {
+		return true;
+	}
+	return false;
+}
+
+function getAudioFileTypeFromPath(path) {
+	let extension = getExtension(path);
+
+	switch (extension) {
+		case 'mp3':
+			return 'mpeg';
+		case 'ogg':
+			return 'ogg';
+		case 'wav':
+			return 'wav';
+		default:
+			return '';
+	}
+}
+
+function getExtension(path) {
+	var basename = path.split(/[\\/]/).pop(), // extract file name from full path ...
+		// (supports `\\` and `/` separators)
+		pos = basename.lastIndexOf('.'); // get last position of `.`
+
+	if (basename === '' || pos < 1)
+		// if file name is empty or ...
+		return ''; //  `.` not found (-1) or comes first (0)
+
+	return basename.slice(pos + 1); // extract extension ignoring `.`
 }

@@ -73,8 +73,9 @@
 
 .searchbar::-webkit-search-cancel-button {
 	/* -webkit-appearance: none; */
-	cursor: pointer;
+	/* cursor: pointer;
 	margin-right: -5px;
 	color: #fff;
-	background-color: #fff;
+	background-color: #fff; */
+	/* position: relative; */
 }

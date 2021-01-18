@@ -90,3 +90,9 @@ out/
 
 # VS code
 .vscode/
+
+# ignore builds
+soundboard-win32-x64/
+
+# ignore settings file
+src/settings.json
