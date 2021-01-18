@@ -21,7 +21,9 @@ var _autosave = true;
 var currentCardId = undefined;
 var _registerShortcut = false;
 
-var data = {};
+var data = {
+	files: [],
+};
 
 var ID = function () {
 	return '_' + Math.random().toString(36).substr(2, 9);
@@ -36,90 +38,102 @@ document.onreadystatechange = () => {
 
 function init() {
 	try {
-		data = JSON.parse(fs.readFileSync(jsonPath));
-		loadSettings(data);
-		loadSounds(data);
-
-		// set up context menu
-		createContextMenu();
-
-		// set up events
-		document.addEventListener('drop', (event) => {
-			event.preventDefault();
-			event.stopPropagation();
-
-			addFiles(event.dataTransfer.files);
-		});
-
-		document.addEventListener('dragover', (e) => {
-			e.preventDefault();
-			e.stopPropagation();
-		});
-
-		document.getElementById('layout-btn').addEventListener('click', switchLayout);
-		document.addEventListener('keydown', handleShortcuts);
-		document.getElementById('stopsoundtoggle').addEventListener('change', (event) => {
-			if (event.target.checked) {
-				_allowMultipleSoundsPlaying = true;
-			} else {
-				_allowMultipleSoundsPlaying = false;
-			}
-		});
-
-		document.getElementById('autosavetoggle').addEventListener('change', (event) => {
-			if (event.target.checked) {
-				_autosave = true;
-			} else {
-				_autosave = false;
-			}
-		});
-
-		document.getElementById('searchbar').addEventListener('input', (event) => {
-			if (event.target.value != '') {
-				search(event.target.value);
-
-				event.target.setAttribute('open', 'true');
-			} else {
-				event.target.setAttribute('open', 'false');
-
-				var playercards = document.getElementsByClassName('playercard');
-				for (const playercard of playercards) {
-					playercard.style.order = '';
-				}
-			}
-		});
+		let settings = JSON.parse(fs.readFileSync(jsonPath));
+		loadSettings(settings);
+		loadSounds(settings);
 	} catch (error) {
-		console.log(error);
+		console.info('Failed to load Settings.json. Creating new Settings.json');
+		writeSettingsJSON();
+		loadSettings();
 	}
+
+	// set up context menu
+	createContextMenu();
+
+	// set up events
+	document.addEventListener('drop', (event) => {
+		event.preventDefault();
+		event.stopPropagation();
+
+		addFiles(event.dataTransfer.files);
+	});
+
+	document.addEventListener('dragover', (e) => {
+		e.preventDefault();
+		e.stopPropagation();
+	});
+
+	document.getElementById('layout-btn').addEventListener('click', switchLayout);
+	document.addEventListener('keydown', handleShortcuts);
+	document.getElementById('stopsoundtoggle').addEventListener('change', (event) => {
+		if (event.target.checked) {
+			_allowMultipleSoundsPlaying = true;
+		} else {
+			_allowMultipleSoundsPlaying = false;
+		}
+	});
+
+	document.getElementById('autosavetoggle').addEventListener('change', (event) => {
+		if (event.target.checked) {
+			_autosave = true;
+		} else {
+			_autosave = false;
+		}
+	});
+
+	document.getElementById('searchbar').addEventListener('input', (event) => {
+		if (event.target.value != '') {
+			search(event.target.value);
+
+			event.target.setAttribute('open', 'true');
+		} else {
+			event.target.setAttribute('open', 'false');
+
+			var playercards = document.getElementsByClassName('playercard');
+			for (const playercard of playercards) {
+				playercard.style.order = '';
+			}
+		}
+	});
 }
 
-function loadSettings(obj) {
-	if (obj.hasOwnProperty('settings')) {
+function loadSettings(obj = undefined) {
+	if (obj != undefined && obj.hasOwnProperty('settings')) {
 		if (obj.settings.layout != undefined) {
-			setLayout(obj.settings.layout);
+			_layout = obj.settings.layout;
 		}
 		if (obj.settings.allowMultipleSoundsPlaying != undefined) {
-			setMultipleSoundsPlaying(obj.settings.allowMultipleSoundsPlaying);
+			_allowMultipleSoundsPlaying = obj.settings.allowMultipleSoundsPlaying;
 		}
 		if (obj.settings.autosave != undefined) {
-			setAutosave(obj.settings.autosave);
+			_autosave = obj.settings.autosave;
 		}
 	} else {
-		console.warn("Couldn't load settings from JSON: missing 'settings' property");
+		console.warn(
+			"Couldn't load settings from Settings.json: missing 'settings' property. Using default settings."
+		);
 	}
+	setLayout(_layout);
+	setMultipleSoundsPlaying(_allowMultipleSoundsPlaying);
+	setAutosave(_autosave);
 }
 
 function loadSounds(obj) {
 	if (obj.hasOwnProperty('files')) {
 		for (var i = 0; i < obj.files.length; i++) {
+			let file = obj.files[i];
+
 			let cardID = ID();
-			Object.assign(obj.files[i], {
+			Object.assign(file, {
 				cardID: cardID,
 			});
+
 			let cardname = obj.files[i].name;
 			let path = obj.files[i].path;
 			let volume = obj.files[i].volume;
 			let shortcut = obj.files[i].shortcut;
+
+			data.files.push(file);
 
 			createcard(cardID, cardname, path, volume);
 			if (shortcut && shortcut.length > 0) {
@@ -131,11 +145,9 @@ function loadSounds(obj) {
 	}
 }
 
-function writeAudioJSON() {
+function writeSettingsJSON() {
 	try {
-		var files = document.getElementsByClassName('playercard');
-
-		var new_json = {
+		var obj = {
 			settings: {
 				layout: _layout,
 				allowMultipleSoundsPlaying: _allowMultipleSoundsPlaying,
@@ -144,29 +156,11 @@ function writeAudioJSON() {
 			files: [],
 		};
 
-		for (var i = 0; i < files.length; i++) {
-			var name = files[i].getElementsByClassName('playercardnametext')[0].innerHTML;
-			var volume = files[i].getElementsByClassName('volumeslider')[0].value;
-			var id = files[i].id;
-			var audio = document.getElementById(id + 'audiosource');
-			var path = audio.getAttribute('src');
-			var shortcut = files[i].hasAttribute('shortcut')
-				? files[i].getAttribute('shortcut')
-				: '';
+		obj.files = serializeAudioFiles();
 
-			let curFile = {
-				name: name,
-				path: path,
-				volume: volume / 100.0,
-				shortcut: shortcut,
-			};
+		const new_settings_json = JSON.stringify(obj);
 
-			new_json.files.push(curFile);
-		}
-
-		const data = JSON.stringify(new_json);
-
-		fs.writeFile(jsonPath, data, 'utf8', (err) => {
+		fs.writeFile(jsonPath, new_settings_json, 'utf8', (err) => {
 			if (err) {
 				console.log(`Error writing savefile: ${err}`);
 			} else {
@@ -176,6 +170,31 @@ function writeAudioJSON() {
 	} catch (error) {
 		console.log(error);
 	}
+}
+
+function serializeAudioFiles() {
+	var files = document.getElementsByClassName('playercard');
+	let audioFiles = [];
+
+	for (var i = 0; i < files.length; i++) {
+		var name = files[i].getElementsByClassName('playercardnametext')[0].innerHTML;
+		var volume = files[i].getElementsByClassName('volumeslider')[0].value;
+		var id = files[i].id;
+		var audio = document.getElementById(id + 'audiosource');
+		var path = audio.getAttribute('src');
+		var shortcut = files[i].hasAttribute('shortcut') ? files[i].getAttribute('shortcut') : '';
+
+		let curFile = {
+			name: name,
+			path: path,
+			volume: volume / 100.0,
+			shortcut: shortcut,
+		};
+
+		audioFiles.push(curFile);
+	}
+
+	return audioFiles;
 }
 
 function removeCard(CardIDRC) {
@@ -206,7 +225,7 @@ function removeCard(CardIDRC) {
 	cardElement.remove();
 
 	if (_autosave) {
-		writeAudioJSON();
+		writeSettingsJSON();
 	}
 }
 
@@ -517,7 +536,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0) {
 
 	volumecontrolslider.onmouseup = function () {
 		if (_autosave) {
-			writeAudioJSON();
+			writeSettingsJSON();
 		}
 	};
 }
@@ -579,7 +598,7 @@ function handleShortcuts(event) {
 			_registerShortcut = false;
 		}
 	} else if (event.code == 'KeyS' && event.ctrlKey) {
-		writeAudioJSON();
+		writeSettingsJSON();
 	} else if (event.code == 'KeyO' && event.ctrlKey) {
 		openFile();
 	}
@@ -606,7 +625,7 @@ function addAudioShortcut(cardID, accelerator) {
 		shortcutLable.innerHTML = Shortcuts.formatShortcut(accelerator);
 	}
 
-	if (_autosave) writeAudioJSON();
+	if (_autosave) writeSettingsJSON();
 }
 
 function removeAudioShortcut(cardID) {
@@ -625,7 +644,7 @@ function removeAudioShortcut(cardID) {
 		shortcutLable.innerHTML = '';
 	}
 
-	if (_autosave) writeAudioJSON();
+	if (_autosave) writeSettingsJSON();
 }
 
 function createContextMenu() {
@@ -646,7 +665,7 @@ function createContextMenu() {
 			accelerator: 'CommandOrControl+S',
 			id: 'save',
 			click() {
-				writeAudioJSON();
+				writeSettingsJSON();
 			},
 		})
 	);
@@ -702,31 +721,42 @@ function openFile() {
 }
 
 function addFiles(files) {
+	// let filepaths = files.map((a) => a.path);
+	// addFilesFromPaths(filepaths);
+
+	let filepaths = [];
+
 	for (const f of files) {
-		if (!validFile(f.path)) continue;
-
-		var cardID = ID();
-		var cardname = f.name;
-		console.log(cardname);
-		// cardname = cardname.replace('.mp3', '');
-		cardname = cardname.substr(0, cardname.lastIndexOf('.')) || cardname;
-		console.log(cardname);
-		cardname = cardname.replace(/-|_|\+|\* /g, ' ');
-		console.log(cardname);
-
-		let newFile = {
-			cardID: cardID,
-			name: cardname,
-			path: f.path,
-			volume: 1,
-			shortcut: '',
-		};
-
-		data.files.push(newFile);
-
-		createcard(cardID, cardname, f.path);
-		if (_autosave) writeAudioJSON();
+		filepaths.push(f.path);
 	}
+
+	addFilesFromPaths(filepaths);
+
+	// for (const f of files) {
+	// 	if (!validFile(f.path)) continue;
+
+	// 	var cardID = ID();
+	// 	var cardname = f.name;
+	// 	console.log(cardname);
+	// 	// cardname = cardname.replace('.mp3', '');
+	// 	cardname = cardname.substr(0, cardname.lastIndexOf('.')) || cardname;
+	// 	console.log(cardname);
+	// 	cardname = cardname.replace(/-|_|\+|\* /g, ' ');
+	// 	console.log(cardname);
+
+	// 	let newFile = {
+	// 		cardID: cardID,
+	// 		name: cardname,
+	// 		path: f.path,
+	// 		volume: 1,
+	// 		shortcut: '',
+	// 	};
+
+	// 	data.files.push(newFile);
+
+	// 	createcard(cardID, cardname, f.path);
+	// 	if (_autosave) writeSettingsJSON();
+	// }
 }
 
 function addFilesFromPaths(filePaths) {
@@ -747,8 +777,9 @@ function addFilesFromPaths(filePaths) {
 		data.files.push(newFile);
 
 		createcard(cardID, cardname, path);
-		if (_autosave) writeAudioJSON();
 	});
+
+	if (_autosave) writeSettingsJSON();
 }
 
 function setMultipleSoundsPlaying(multiplePlaying) {
