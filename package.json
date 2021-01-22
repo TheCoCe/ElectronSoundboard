@@ -9,7 +9,11 @@
   "author": "Sera",
   "license": "ISC",
   "devDependencies": {
-    "electron": "^11.1.1"
+    "electron": "^11.1.1",
+    "electron-wix-msi": "^3.0.6"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@jaames/iro": "^5.3.1",
+    "electron-prompt": "^1.6.0"
+  }
 }

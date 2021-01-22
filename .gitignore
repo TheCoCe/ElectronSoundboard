@@ -96,3 +96,6 @@ soundboard-win32-x64/
 
 # ignore settings file
 src/settings.json
+
+# ignore windows installer folder
+windows_installer/

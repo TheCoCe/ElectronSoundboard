@@ -1,12 +1,13 @@
 import * as Shortcuts from './shortcuts.js';
 
 const { BrowserWindow } = require('electron').remote;
-const { ipcRenderer, app, remote, dialog, globalShortcut } = require('electron');
+const { ipcRenderer, app, remote } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const directoryPath = path.join(__dirname, '/audio');
 const jsonPath = path.join(__dirname, 'settings.json');
 const contextMenu = new remote.Menu();
+const prompt = require('electron-prompt');
+const colorpicker = require('@jaames/iro');
 
 const playercardColors = ['#ffb067', '#ffed86', '#a2dce7', '#f8ccdc'];
 
@@ -18,12 +19,20 @@ var _layout = Layout.Default;
 
 var _allowMultipleSoundsPlaying = true;
 var _autosave = true;
-var currentCardId = undefined;
+var _currentCardId = undefined;
 var _registerShortcut = false;
-
-var data = {
-	files: [],
+var cp;
+const colorPickerSize = {
+	width: 200,
+	widthWithPadding: 220,
 };
+let _colorPickerTarget = undefined;
+var mousePos = {
+	x: 0,
+	y: 0,
+};
+
+var data = {};
 
 var ID = function () {
 	return '_' + Math.random().toString(36).substr(2, 9);
@@ -37,18 +46,23 @@ document.onreadystatechange = () => {
 };
 
 function init() {
-	try {
-		let settings = JSON.parse(fs.readFileSync(jsonPath));
-		loadSettings(settings);
-		loadSounds(settings);
-	} catch (error) {
-		console.info('Failed to load Settings.json. Creating new Settings.json');
-		writeSettingsJSON();
-		loadSettings();
-	}
+	fs.stat(jsonPath, (err, stat) => {
+		if (err == null) {
+			let settings = JSON.parse(fs.readFileSync(jsonPath));
+			loadSettings(settings);
+			loadSounds(settings);
+		} else if (err.code == 'ENOENT') {
+			console.info('Failed to load Settings.json. Creating new Settings.json');
+			writeSettingsJSON();
+			loadSettings();
+		} else {
+			console.log(err.message);
+		}
+	});
 
 	// set up context menu
 	createContextMenu();
+	createColorPicker();
 
 	// set up events
 	document.addEventListener('drop', (event) => {
@@ -84,7 +98,7 @@ function init() {
 	document.getElementById('searchbar').addEventListener('input', (event) => {
 		if (event.target.value != '') {
 			search(event.target.value);
-
+			document.body.scroll({ top: 0, left: 0, behavior: 'smooth' });
 			event.target.setAttribute('open', 'true');
 		} else {
 			event.target.setAttribute('open', 'false');
@@ -95,6 +109,11 @@ function init() {
 			}
 		}
 	});
+
+	document.onmousemove = function (event) {
+		mousePos.x = event.pageX;
+		mousePos.y = event.pageY;
+	};
 }
 
 function loadSettings(obj = undefined) {
@@ -123,7 +142,10 @@ function loadSounds(obj) {
 		for (var i = 0; i < obj.files.length; i++) {
 			let file = obj.files[i];
 
-			let cardID = ID();
+			let cardID = '';
+			do {
+				cardID = ID();
+			} while (cardID in data);
 			Object.assign(file, {
 				cardID: cardID,
 			});
@@ -132,10 +154,11 @@ function loadSounds(obj) {
 			let path = obj.files[i].path;
 			let volume = obj.files[i].volume;
 			let shortcut = obj.files[i].shortcut;
+			let color = obj.files[i].color;
 
-			data.files.push(file);
+			data[cardID] = file;
 
-			createcard(cardID, cardname, path, volume);
+			createcard(cardID, cardname, path, volume, color);
 			if (shortcut && shortcut.length > 0) {
 				addAudioShortcut(cardID, shortcut);
 			}
@@ -191,38 +214,18 @@ function serializeAudioFiles() {
 			shortcut: shortcut,
 		};
 
+		curFile.color = data[id]?.color;
+
 		audioFiles.push(curFile);
 	}
 
 	return audioFiles;
 }
 
-function removeCard(CardIDRC) {
-	var audioSourceElement = document.getElementById(CardIDRC + 'audiosource');
-	var audioFilePath = audioSourceElement.getAttribute('src');
-	var fileName = path.basename(audioFilePath.toString());
-	var fullPath = directoryPath + '/' + fileName;
-	var cardElement = document.getElementById(CardIDRC);
-
-	let removeCardConfirmData = {
-		data: 1,
-	};
-
-	// ipcRenderer.send('backendrequest-DeleteConfirm', removeCardConfirmData);
-
-	// ipcRenderer.on('frontendrequest-DeleteConfirmed', (event, arg) => {
-	// 	if (arg.rdata == 1) {
-	// 		cardElement.style.display = 'none';
-
-	// 		// fs.unlink(fullPath, (err) => {
-	// 		// 	if (err) {
-	// 		// 		return console.log(err);
-	// 		// 	}
-	// 		// });
-	// 	}
-	// });
-
-	cardElement.remove();
+function removeCard(cardID) {
+	var cardElement = document.getElementById(cardID);
+	if (cardElement) cardElement.remove();
+	if (cardID in data) delete data[cardID];
 
 	if (_autosave) {
 		writeSettingsJSON();
@@ -235,8 +238,8 @@ function search(string) {
 
 	var words = searchTerm.split(' ').filter((i) => i); // filter to remove empty elements
 
-	for (let index = 0; index < data.files.length; index++) {
-		const element = data.files[index];
+	for (const key in data) {
+		const element = data[key];
 
 		var result = {
 			cardID: element.cardID,
@@ -276,7 +279,7 @@ function search(string) {
 	}
 }
 
-function createcard(cardID, filename, audiopath, volume = 1.0) {
+function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined) {
 	var parentlocation = document.getElementById('cardwidget');
 	var audioID = cardID + 'audio';
 	var timeID = cardID + 'time';
@@ -302,26 +305,24 @@ function createcard(cardID, filename, audiopath, volume = 1.0) {
 	playercard.setAttribute('id', cardID);
 	playercard.setAttribute('class', 'playercard');
 	playercard.style.backgroundColor =
-		playercardColors[Math.floor(Math.random() * playercardColors.length)];
+		color != undefined
+			? color
+			: playercardColors[Math.floor(Math.random() * playercardColors.length)];
 
 	playercard.onmouseenter = function () {
 		if (!_registerShortcut) {
-			currentCardId = playercard.getAttribute('id');
-			// console.log('entered: ' + currentCardId);
+			_currentCardId = playercard.getAttribute('id');
 			if (contextMenu != undefined) {
-				contextMenu.getMenuItemById('setShortcut').enabled = true;
-				contextMenu.getMenuItemById('removeShortcut').enabled = true;
+				enableCardContextMenus();
 			}
 		}
 	};
 
 	playercard.onmouseleave = function () {
 		if (!_registerShortcut) {
-			// console.log('left');
-			currentCardId = undefined;
+			_currentCardId = undefined;
 			if (contextMenu != undefined) {
-				contextMenu.getMenuItemById('setShortcut').enabled = false;
-				contextMenu.getMenuItemById('removeShortcut').enabled = false;
+				disableCardContextMenus();
 			}
 		}
 	};
@@ -332,6 +333,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0) {
 	playercardname.append(playercardnametext);
 	playercardnametext.innerHTML = filename;
 	playercardnametext.setAttribute('class', 'playercardnametext');
+	playercardnametext.setAttribute('id', cardID + 'playercardnametext');
 
 	// shortcut
 	playercard.append(shortcutwrapper);
@@ -356,7 +358,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0) {
 	deletecard.append(deletecardicon);
 	deletecardicon.setAttribute('class', 'fas fa-trash');
 	deletecardicon.onclick = function () {
-		console.log('Remove card clicked: ${cardID}');
+		disableCardContextMenus();
 		removeCard(cardID);
 	};
 
@@ -373,7 +375,6 @@ function createcard(cardID, filename, audiopath, volume = 1.0) {
 	var playIcon = document.createElement('i');
 	play.append(playIcon);
 	playIcon.setAttribute('class', 'fas fa-play');
-	//TODO: timereseticon.setAttribute('onclick', )
 
 	// timereset button
 	audiocontrolwrapper.append(stop);
@@ -591,10 +592,10 @@ function handleShortcuts(event) {
 			event.code == 'Delete'
 		) {
 			_registerShortcut = false;
-			var playercard = document.getElementById(currentCardId);
+			var playercard = document.getElementById(_currentCardId);
 			if (playercard) playercard.style.border = '';
 		} else if (!Shortcuts.isModifier(event.code) && Shortcuts.isValidShortcutKey(event.code)) {
-			addAudioShortcut(currentCardId, Shortcuts.createShortcut(event));
+			addAudioShortcut(_currentCardId, Shortcuts.createShortcut(event));
 			_registerShortcut = false;
 		}
 	} else if (event.code == 'KeyS' && event.ctrlKey) {
@@ -672,12 +673,35 @@ function createContextMenu() {
 
 	contextMenu.append(
 		new remote.MenuItem({
+			label: 'Rename',
+			id: 'rename',
+			//accelerator: '',
+			click() {
+				rename(_currentCardId);
+			},
+		})
+	);
+
+	contextMenu.append(
+		new remote.MenuItem({
+			label: 'Set Card Color',
+			id: 'color',
+			//accelerator: '',
+			click() {
+				_colorPickerTarget = _currentCardId;
+				showColorPicker();
+			},
+		})
+	);
+
+	contextMenu.append(
+		new remote.MenuItem({
 			label: 'Set Shortcut',
 			id: 'setShortcut',
 			//accelerator: '',
 			click() {
 				_registerShortcut = true;
-				var playercard = document.getElementById(currentCardId);
+				var playercard = document.getElementById(_currentCardId);
 				if (playercard) {
 					playercard.style.border = 'solid 2px #ffb327';
 				}
@@ -691,7 +715,7 @@ function createContextMenu() {
 			id: 'removeShortcut',
 			//accelerator: '',
 			click() {
-				if (currentCardId) removeAudioShortcut(currentCardId);
+				if (_currentCardId) removeAudioShortcut(_currentCardId);
 			},
 		})
 	);
@@ -721,9 +745,6 @@ function openFile() {
 }
 
 function addFiles(files) {
-	// let filepaths = files.map((a) => a.path);
-	// addFilesFromPaths(filepaths);
-
 	let filepaths = [];
 
 	for (const f of files) {
@@ -731,40 +752,18 @@ function addFiles(files) {
 	}
 
 	addFilesFromPaths(filepaths);
-
-	// for (const f of files) {
-	// 	if (!validFile(f.path)) continue;
-
-	// 	var cardID = ID();
-	// 	var cardname = f.name;
-	// 	console.log(cardname);
-	// 	// cardname = cardname.replace('.mp3', '');
-	// 	cardname = cardname.substr(0, cardname.lastIndexOf('.')) || cardname;
-	// 	console.log(cardname);
-	// 	cardname = cardname.replace(/-|_|\+|\* /g, ' ');
-	// 	console.log(cardname);
-
-	// 	let newFile = {
-	// 		cardID: cardID,
-	// 		name: cardname,
-	// 		path: f.path,
-	// 		volume: 1,
-	// 		shortcut: '',
-	// 	};
-
-	// 	data.files.push(newFile);
-
-	// 	createcard(cardID, cardname, f.path);
-	// 	if (_autosave) writeSettingsJSON();
-	// }
 }
 
 function addFilesFromPaths(filePaths) {
 	filePaths.forEach((path) => {
 		if (!validFile(path)) return;
 
-		var cardID = ID();
+		var cardID = '';
+		do {
+			cardID = ID();
+		} while (cardID in data);
 		var cardname = path.replace(/^.*[\\\/]/, '').split('.')[0];
+		cardname = cardname.replace(/-|_|\+|\* /g, ' ');
 
 		let newFile = {
 			cardID: cardID,
@@ -772,11 +771,12 @@ function addFilesFromPaths(filePaths) {
 			path: path,
 			volume: 1,
 			shortcut: '',
+			color: playercardColors[Math.floor(Math.random() * playercardColors.length)],
 		};
 
-		data.files.push(newFile);
+		data[cardID] = newFile;
 
-		createcard(cardID, cardname, path);
+		createcard(cardID, cardname, path, newFile.volume, newFile.color);
 	});
 
 	if (_autosave) writeSettingsJSON();
@@ -854,4 +854,106 @@ function getExtension(path) {
 		return ''; //  `.` not found (-1) or comes first (0)
 
 	return basename.slice(pos + 1); // extract extension ignoring `.`
+}
+
+function rename(cardID) {
+	prompt({
+		title: 'Cardname',
+		label: 'New card name:',
+		value: document.getElementById(cardID + 'playercardnametext')?.innerHTML,
+		type: 'input',
+		height: 180,
+	})
+		.then((value) => {
+			if (value && value.length > 0) {
+				if (cardID in data) {
+					data[cardID].name = value;
+				}
+				var playercardName = document.getElementById(cardID + 'playercardnametext');
+				if (playercardName) {
+					playercardName.innerHTML = value;
+				}
+				if (_autosave) writeSettingsJSON();
+			}
+		})
+		.catch(console.error);
+}
+
+function createColorPicker() {
+	cp = new colorpicker.ColorPicker('#colorpicker', {
+		width: colorPickerSize.width,
+	});
+
+	let colorPicker = document.getElementById('colorpicker');
+	if (colorPicker) colorPicker.style.visibility = 'hidden';
+
+	let ok = document.getElementById('colorpickerok');
+	if (ok) {
+		ok.onclick = (event) => {
+			setCardColor(_colorPickerTarget, cp.color.hexString);
+			hideColorPicker();
+		};
+	}
+	let cancle = document.getElementById('colorpickercancle');
+	if (cancle) {
+		cancle.onclick = (event) => {
+			hideColorPicker();
+		};
+	}
+}
+
+function showColorPicker() {
+	let colorPicker = document.getElementById('colorpicker');
+	if (colorPicker) {
+		if (data[_colorPickerTarget] && data[_colorPickerTarget].color) {
+			cp.color.hexString = data[_colorPickerTarget].color;
+		}
+
+		colorPicker.style.visibility = 'visible';
+
+		const width =
+			window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
+		const height =
+			window.innerHeight ||
+			document.documentElement.clientHeight ||
+			document.body.clientHeight;
+
+		colorPicker.style.left =
+			mousePos.x > width - colorPickerSize.widthWithPadding
+				? mousePos.x - colorPickerSize.widthWithPadding
+				: mousePos.x;
+
+		colorPicker.style.top = mousePos.y > height - 320 ? mousePos.y - 320 : mousePos.y;
+	}
+}
+
+function hideColorPicker() {
+	let colorPicker = document.getElementById('colorpicker');
+	if (colorPicker) {
+		colorPicker.style.visibility = 'hidden';
+	}
+	_colorPickerTarget = undefined;
+}
+
+function setCardColor(cardID, color) {
+	let playercard = document.getElementById(cardID);
+	if (playercard) {
+		playercard.style.background = color;
+		data[cardID].color = color;
+		if (_autosave) writeSettingsJSON();
+	}
+}
+
+function enableCardContextMenus() {
+	contextMenu.getMenuItemById('setShortcut').enabled = true;
+	contextMenu.getMenuItemById('removeShortcut').enabled = true;
+	contextMenu.getMenuItemById('rename').enabled = true;
+	contextMenu.getMenuItemById('color').enabled = true;
+}
+
+function disableCardContextMenus() {
+	contextMenu.getMenuItemById('setShortcut').enabled = false;
+	contextMenu.getMenuItemById('removeShortcut').enabled = false;
+	contextMenu.getMenuItemById('rename').enabled = false;
+	contextMenu.getMenuItemById('color').enabled = false;
 }
