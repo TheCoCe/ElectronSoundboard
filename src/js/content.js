@@ -720,6 +720,18 @@ function createContextMenu() {
 		})
 	);
 
+	// contextMenu.append(
+	// 	new remote.MenuItem({
+	// 		label: 'Test',
+	// 		id: 'test',
+	// 		//accelerator: '',
+	// 		// click() {
+	// 		// 	if (_currentCardId) removeAudioShortcut(_currentCardId);
+	// 		// },
+	// 		submenu: [{ label: 'test1' }, { label: 'test2' }],
+	// 	})
+	// );
+
 	contextMenu.getMenuItemById('removeShortcut').enabled = false;
 	contextMenu.getMenuItemById('setShortcut').enabled = false;
 
@@ -882,24 +894,45 @@ function rename(cardID) {
 function createColorPicker() {
 	cp = new colorpicker.ColorPicker('#colorpicker', {
 		width: colorPickerSize.width,
+		borderWidth: 2,
+		borderColor: '#fff',
 	});
 
 	let colorPicker = document.getElementById('colorpicker');
 	if (colorPicker) colorPicker.style.visibility = 'hidden';
 
-	let ok = document.getElementById('colorpickerok');
-	if (ok) {
-		ok.onclick = (event) => {
-			setCardColor(_colorPickerTarget, cp.color.hexString);
+	let colorpickerbuttons = document.createElement('div');
+	colorpickerbuttons.setAttribute('class', 'colorpickerbuttons');
+
+	let cpDiv = document.getElementById('colorpicker');
+	cpDiv.append(colorpickerbuttons);
+	cpDiv.onclick = function (event) {
+		event.stopPropagation();
+	};
+
+	let apply = document.createElement('p');
+	colorpickerbuttons.append(apply);
+	apply.setAttribute('class', 'colorpickerapply');
+	apply.innerHTML = 'Apply';
+	apply.onclick = (event) => {
+		setCardColor(_colorPickerTarget, cp.color.hexString);
+		hideColorPicker();
+	};
+
+	let cancle = document.createElement('p');
+	colorpickerbuttons.append(cancle);
+	cancle.setAttribute('class', 'colorpickercancle');
+	cancle.innerHTML = 'Cancle';
+	cancle.onclick = (event) => {
+		hideColorPicker();
+	};
+
+	// Setup click outside event
+	window.addEventListener('click', function (e) {
+		if (colorPickerVisible() && !document.getElementById('colorpicker').contains(e.target)) {
 			hideColorPicker();
-		};
-	}
-	let cancle = document.getElementById('colorpickercancle');
-	if (cancle) {
-		cancle.onclick = (event) => {
-			hideColorPicker();
-		};
-	}
+		}
+	});
 }
 
 function showColorPicker() {
@@ -911,19 +944,27 @@ function showColorPicker() {
 
 		colorPicker.style.visibility = 'visible';
 
-		const width =
+		let width =
 			window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
-		const height =
+		let height =
 			window.innerHeight ||
 			document.documentElement.clientHeight ||
 			document.body.clientHeight;
 
-		colorPicker.style.left =
-			mousePos.x > width - colorPickerSize.widthWithPadding
-				? mousePos.x - colorPickerSize.widthWithPadding
-				: mousePos.x;
+		let footer = document.getElementById('footer');
+		height -= footer.offsetHeight;
 
-		colorPicker.style.top = mousePos.y > height - 320 ? mousePos.y - 320 : mousePos.y;
+		const cpHeight = colorPicker.offsetHeight;
+		const cpWidth = colorPicker.offsetWidth;
+
+		colorPicker.style.left =
+			mousePos.x > width - cpWidth
+				? mousePos.x - (cpWidth - (width - mousePos.x))
+				: mousePos.x;
+		colorPicker.style.top =
+			mousePos.y > height - cpHeight
+				? mousePos.y - (cpHeight - (height - mousePos.y))
+				: mousePos.y;
 	}
 }
 
@@ -933,6 +974,11 @@ function hideColorPicker() {
 		colorPicker.style.visibility = 'hidden';
 	}
 	_colorPickerTarget = undefined;
+}
+
+function colorPickerVisible() {
+	let colorPicker = document.getElementById('colorpicker');
+	return colorPicker && colorPicker.style.visibility === 'visible' ? true : false;
 }
 
 function setCardColor(cardID, color) {
