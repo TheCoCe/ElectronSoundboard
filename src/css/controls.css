@@ -13,10 +13,7 @@ body {
 }
 
 .winctrlcontainer {
-	top: 0;
-	position: fixed;
 	width: 100%;
-	z-index: 9999;
 	-webkit-app-region: drag;
 	background: repeating-linear-gradient(-45deg, #fc8c29, #fc8c29 1%, #f3892b 2%, #fc8c29 3%);
 	height: 36px;
@@ -55,10 +52,25 @@ body {
 	display: inline-block;
 	vertical-align: top;
 	text-align: center;
-	margin-right: 15px;
+	/* margin-right: 15px; */
 }
 
 .winctrlbuttonlayout > i {
+	position: relative;
+	top: 8;
+}
+
+.winctrlbuttonfav {
+	height: 36px;
+	width: 26px;
+	color: #fff;
+	display: inline-block;
+	vertical-align: top;
+	text-align: center;
+	margin-right: 15px;
+}
+
+.winctrlbuttonfav > i {
 	position: relative;
 	top: 8;
 }
@@ -126,6 +138,11 @@ body {
 }
 
 .winctrlbuttonlayout:hover {
+	opacity: 1;
+	background-color: #313438;
+}
+
+.winctrlbuttonfav:hover {
 	opacity: 1;
 	background-color: #313438;
 }

@@ -5,7 +5,6 @@ const { ipcRenderer, app, remote } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const jsonPath = path.join(__dirname, 'settings.json');
-const contextMenu = new remote.Menu();
 const prompt = require('electron-prompt');
 const colorpicker = require('@jaames/iro');
 
@@ -17,10 +16,20 @@ const Layout = {
 };
 var _layout = Layout.Default;
 
+const ViewMode = {
+	GroupOverview: 'GroupOverview',
+	GroupContent: 'GroupContent',
+	Default: 'Default',
+};
+let _viewMode = ViewMode.Default;
+
+let contextMenu = undefined;
 var _allowMultipleSoundsPlaying = true;
 var _autosave = true;
 var _currentCardId = undefined;
 var _registerShortcut = false;
+let _currentGroupId = undefined;
+let _currentFilterGroupId = undefined;
 var cp;
 const colorPickerSize = {
 	width: 200,
@@ -32,6 +41,7 @@ var mousePos = {
 	y: 0,
 };
 
+let groups = {};
 var data = {};
 
 var ID = function () {
@@ -48,21 +58,29 @@ document.onreadystatechange = () => {
 function init() {
 	fs.stat(jsonPath, (err, stat) => {
 		if (err == null) {
-			let settings = JSON.parse(fs.readFileSync(jsonPath));
-			loadSettings(settings);
-			loadSounds(settings);
+			try {
+				let settings = JSON.parse(fs.readFileSync(jsonPath));
+				loadSettings(settings);
+				loadSounds(settings);
+				loadGroups(settings);
+			} catch (error) {
+				console.info('Failed to load Settings.json. Creating new Settings.json');
+				writeSettingsJSON();
+				loadSettings();
+			}
 		} else if (err.code == 'ENOENT') {
 			console.info('Failed to load Settings.json. Creating new Settings.json');
 			writeSettingsJSON();
 			loadSettings();
 		} else {
+			console.log('bla');
 			console.log(err.message);
 		}
-	});
 
-	// set up context menu
-	createContextMenu();
-	createColorPicker();
+		// set up context menu
+		buildContextMenu();
+		createColorPicker();
+	});
 
 	// set up events
 	document.addEventListener('drop', (event) => {
@@ -78,6 +96,13 @@ function init() {
 	});
 
 	document.getElementById('layout-btn').addEventListener('click', switchLayout);
+	document.getElementById('fav-btn').addEventListener('click', (event) => {
+		if (_viewMode != ViewMode.GroupOverview && _viewMode != ViewMode.GroupContent) {
+			setViewMode(ViewMode.GroupOverview);
+		} else {
+			setViewMode(ViewMode.Default);
+		}
+	});
 	document.addEventListener('keydown', handleShortcuts);
 	document.getElementById('stopsoundtoggle').addEventListener('change', (event) => {
 		if (event.target.checked) {
@@ -114,6 +139,17 @@ function init() {
 		mousePos.x = event.pageX;
 		mousePos.y = event.pageY;
 	};
+
+	// Group event setup
+	document.getElementById('groupreturnbtn').addEventListener('mouseup', (event) => {
+		if (_viewMode == ViewMode.GroupContent) {
+			setViewMode(ViewMode.GroupOverview);
+		} else if (_viewMode == ViewMode.GroupOverview) {
+			setViewMode(ViewMode.Default);
+		}
+	});
+
+	setViewMode(ViewMode.Default);
 }
 
 function loadSettings(obj = undefined) {
@@ -142,28 +178,64 @@ function loadSounds(obj) {
 		for (var i = 0; i < obj.files.length; i++) {
 			let file = obj.files[i];
 
-			let cardID = '';
-			do {
-				cardID = ID();
-			} while (cardID in data);
-			Object.assign(file, {
-				cardID: cardID,
-			});
+			if (file.hasOwnProperty('path')) {
+				let newFile = {
+					id: null,
+					name: null,
+					path: file.path,
+					volume: 1,
+					shortcut: '',
+					color: null,
+				};
 
-			let cardname = obj.files[i].name;
-			let path = obj.files[i].path;
-			let volume = obj.files[i].volume;
-			let shortcut = obj.files[i].shortcut;
-			let color = obj.files[i].color;
+				if (file.hasOwnProperty('id')) {
+					newFile.id = file.id;
+				}
+				while (newFile.id == null || newFile.id in data) {
+					cardId = ID();
+				}
 
-			data[cardID] = file;
+				newFile.name = file.hasOwnProperty('name') ? file.name : getNameFromPath(file.path);
+				if (file.hasOwnProperty('volume')) newFile.volume = file.volume;
+				if (file.hasOwnProperty('color')) newFile.color = file.color;
+				if (file.hasOwnProperty('shortcut')) newFile.shortcut = file.shortcut;
 
-			createcard(cardID, cardname, path, volume, color);
-			if (shortcut && shortcut.length > 0) {
-				addAudioShortcut(cardID, shortcut);
+				data[newFile.id] = newFile;
+				createcard(newFile.id, newFile.name, newFile.path, newFile.volume, newFile.color);
+				if (newFile.shortcut.length > 0) addAudioShortcut(newFile.id, newFile.shortcut);
+
+				console.log(newFile.name);
 			}
+		}
+	}
+}
 
-			console.log(obj.files[i].name);
+function loadGroups(obj) {
+	if (obj.hasOwnProperty('groups')) {
+		let groupsObj = obj.groups;
+
+		for (const key in groupsObj) {
+			if (Object.hasOwnProperty.call(groupsObj, key)) {
+				const group = groupsObj[key];
+				// a single group object = {"_sajz2bfgb":{"name":"test","files":[{"cardId":"_ff422g3gu"},{"cardID":"_ff422g3gu"}]}
+
+				if (group.hasOwnProperty('files') && group.files.length > 0) {
+					let newGroup = {
+						name: group.hasOwnProperty('name') ? group.name : 'MISSING',
+						files: [],
+					};
+
+					for (let i = 0; i < groupsObj[key].files.length; i++) {
+						const file = groupsObj[key].files[i];
+						if (file !== '' && file !== null) {
+							newGroup.files.push(file);
+						}
+					}
+
+					groups[key] = newGroup;
+					createGroupCard(key, newGroup.name);
+				}
+			}
 		}
 	}
 }
@@ -177,9 +249,11 @@ function writeSettingsJSON() {
 				autosave: _autosave,
 			},
 			files: [],
+			groups: [],
 		};
 
 		obj.files = serializeAudioFiles();
+		obj.groups = serializeGroups();
 
 		const new_settings_json = JSON.stringify(obj);
 
@@ -196,36 +270,49 @@ function writeSettingsJSON() {
 }
 
 function serializeAudioFiles() {
-	var files = document.getElementsByClassName('playercard');
 	let audioFiles = [];
 
-	for (var i = 0; i < files.length; i++) {
-		var name = files[i].getElementsByClassName('playercardnametext')[0].innerHTML;
-		var volume = files[i].getElementsByClassName('volumeslider')[0].value;
-		var id = files[i].id;
-		var audio = document.getElementById(id + 'audiosource');
-		var path = audio.getAttribute('src');
-		var shortcut = files[i].hasAttribute('shortcut') ? files[i].getAttribute('shortcut') : '';
+	for (const key in data) {
+		if (Object.hasOwnProperty.call(data, key)) {
+			const file = data[key];
+			let curFile = {
+				id: key,
+				name: file.name,
+				path: file.path,
+				volume: file.volume,
+				shortcut: file.shortcut,
+				color: file.color,
+			};
 
-		let curFile = {
-			name: name,
-			path: path,
-			volume: volume / 100.0,
-			shortcut: shortcut,
-		};
-
-		curFile.color = data[id]?.color;
-
-		audioFiles.push(curFile);
+			audioFiles.push(curFile);
+		}
 	}
 
 	return audioFiles;
 }
 
-function removeCard(cardID) {
-	var cardElement = document.getElementById(cardID);
+function serializeGroups() {
+	//TODO: validation: don't save empty groups without any files?
+	return groups;
+}
+
+function removeCard(cardId) {
+	var cardElement = document.getElementById(cardId);
 	if (cardElement) cardElement.remove();
-	if (cardID in data) delete data[cardID];
+
+	// delete file from groups
+	for (const key in groups) {
+		if (Object.hasOwnProperty.call(groups, key)) {
+			const group = groups[key];
+			for (let index = 0; index < group.files.length; index++) {
+				if (group.files[index] === cardId) {
+					group.files.splice(index, 1);
+				}
+			}
+		}
+	}
+
+	if (cardId in data) delete data[cardId];
 
 	if (_autosave) {
 		writeSettingsJSON();
@@ -242,7 +329,7 @@ function search(string) {
 		const element = data[key];
 
 		var result = {
-			cardID: element.cardID,
+			id: element.id,
 			name: element.name,
 			matches: 0,
 		};
@@ -272,7 +359,7 @@ function search(string) {
 
 	for (let index = 0; index < results.length; index++) {
 		const element = results[index];
-		let playercard = document.getElementById(element.cardID);
+		let playercard = document.getElementById(element.id);
 		if (playercard) {
 			playercard.style.order = -results.length + index;
 		}
@@ -312,18 +399,14 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 	playercard.onmouseenter = function () {
 		if (!_registerShortcut) {
 			_currentCardId = playercard.getAttribute('id');
-			if (contextMenu != undefined) {
-				enableCardContextMenus();
-			}
+			enableCardContextMenus();
 		}
 	};
 
 	playercard.onmouseleave = function () {
 		if (!_registerShortcut) {
 			_currentCardId = undefined;
-			if (contextMenu != undefined) {
-				disableCardContextMenus();
-			}
+			disableCardContextMenus();
 		}
 	};
 
@@ -527,7 +610,9 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 	};
 
 	volumecontrolslider.oninput = function () {
-		audioelement.volume = this.value / 100;
+		let volume = this.value / 100;
+		audioelement.volume = volume;
+		data[cardID].volume = volume;
 		if (audioelement.volume == 0) {
 			volumeIcon.setAttribute('class', 'fa fa-volume-off');
 		} else {
@@ -561,7 +646,8 @@ function setLayout(layout) {
 		switch (layout) {
 			case Layout.Default: {
 				_layout = Layout.Default;
-				playercardcontainer.style.flexDirection = '';
+				playercardcontainer.style.flexFlow = '';
+				playercardcontainer.setAttribute('layout', 'default');
 				var layoutIcon = document.getElementById('layout-icon');
 				if (layoutIcon) {
 					layoutIcon.setAttribute('class', 'Fas fa-th-list');
@@ -570,7 +656,8 @@ function setLayout(layout) {
 			}
 			case Layout.List: {
 				_layout = Layout.List;
-				playercardcontainer.style.flexDirection = 'column';
+				playercardcontainer.style.flexFlow = 'column';
+				playercardcontainer.setAttribute('layout', 'column');
 				var layoutIcon = document.getElementById('layout-icon');
 				if (layoutIcon) {
 					layoutIcon.setAttribute('class', 'Fas fa-th');
@@ -609,10 +696,10 @@ function addAudioShortcut(cardID, accelerator) {
 	var playercard = document.getElementById(cardID);
 	removeAudioShortcut(cardID);
 
+	data[cardID].shortcut = accelerator;
+
 	var audio = document.getElementById(cardID + 'audio');
 	if (playercard && audio) {
-		playercard.setAttribute('shortcut', accelerator);
-
 		remote.globalShortcut.register(accelerator, () => {
 			audio.currentTime = 0;
 			playAudio(audio);
@@ -631,12 +718,11 @@ function addAudioShortcut(cardID, accelerator) {
 
 function removeAudioShortcut(cardID) {
 	var playercard = document.getElementById(cardID);
-	if (playercard && playercard.hasAttribute('shortcut')) {
-		var shortcut = playercard.getAttribute('shortcut');
-		playercard.removeAttribute('shortcut');
-		if (remote.globalShortcut.isRegistered(shortcut)) {
-			remote.globalShortcut.unregister(shortcut);
+	if (playercard && data[cardID].shortcut.length > 0) {
+		if (remote.globalShortcut.isRegistered(data[cardID].shortcut)) {
+			remote.globalShortcut.unregister(data[cardID].shortcut);
 		}
+		data[cardID].shortcut = '';
 	}
 
 	var shortcutLable = document.getElementById(cardID + 'shortcutLable');
@@ -648,54 +734,54 @@ function removeAudioShortcut(cardID) {
 	if (_autosave) writeSettingsJSON();
 }
 
-function createContextMenu() {
-	contextMenu.append(
-		new remote.MenuItem({
+function buildContextMenu() {
+	const menuTemplate = [
+		{
+			label: 'Stop all Sounds',
+			accelerator: 'MediaStop',
+			id: 'stopAllSounds',
+			click() {
+				stopAllSounds();
+			},
+		},
+		{
 			label: 'Add Files',
 			accelerator: 'CommandOrControl+O',
 			id: 'addFiles',
 			click() {
 				openFile();
 			},
-		})
-	);
-
-	contextMenu.append(
-		new remote.MenuItem({
+		},
+		{
 			label: 'Save',
 			accelerator: 'CommandOrControl+S',
 			id: 'save',
 			click() {
 				writeSettingsJSON();
 			},
-		})
-	);
-
-	contextMenu.append(
-		new remote.MenuItem({
+		},
+		{
 			label: 'Rename',
 			id: 'rename',
-			//accelerator: '',
+			accelerator: 'F2',
 			click() {
-				rename(_currentCardId);
+				if (_currentCardId) rename(_currentCardId);
+				else if (_currentGroupId) renameGroup(_currentGroupId);
 			},
-		})
-	);
-
-	contextMenu.append(
-		new remote.MenuItem({
-			label: 'Set Card Color',
+		},
+		{
+			type: 'separator',
+		},
+		{
+			label: 'Set Color',
 			id: 'color',
 			//accelerator: '',
 			click() {
 				_colorPickerTarget = _currentCardId;
 				showColorPicker();
 			},
-		})
-	);
-
-	contextMenu.append(
-		new remote.MenuItem({
+		},
+		{
 			label: 'Set Shortcut',
 			id: 'setShortcut',
 			//accelerator: '',
@@ -706,38 +792,86 @@ function createContextMenu() {
 					playercard.style.border = 'solid 2px #ffb327';
 				}
 			},
-		})
-	);
-
-	contextMenu.append(
-		new remote.MenuItem({
+		},
+		{
 			label: 'Remove Shortcut',
 			id: 'removeShortcut',
 			//accelerator: '',
 			click() {
 				if (_currentCardId) removeAudioShortcut(_currentCardId);
 			},
-		})
-	);
+		},
+		{
+			label: 'Remove from Group',
+			id: 'removeFromGroup',
+			//accelerator: '',
+			click() {
+				if (_currentCardId) removeFileFromGroup(_currentFilterGroupId, _currentCardId);
+			},
+		},
+		{
+			type: 'separator',
+		},
+		{
+			label: 'Create Group',
+			id: 'createGroup',
+			accelerator: 'CommandOrControl+G',
+			click() {
+				createGroup(_currentCardId);
+			},
+		},
+		{
+			label: 'Remove Group',
+			id: 'removeGroup',
+			//accelerator: '',
+			click() {
+				if (_currentGroupId) removeGroup(_currentGroupId);
+			},
+		},
+		{
+			label: 'Grouplist',
+			id: 'group',
+			submenu: [],
+		},
+	];
 
-	// contextMenu.append(
-	// 	new remote.MenuItem({
-	// 		label: 'Test',
-	// 		id: 'test',
-	// 		//accelerator: '',
-	// 		// click() {
-	// 		// 	if (_currentCardId) removeAudioShortcut(_currentCardId);
-	// 		// },
-	// 		submenu: [{ label: 'test1' }, { label: 'test2' }],
-	// 	})
-	// );
+	contextMenu = remote.Menu.buildFromTemplate(menuTemplate);
+	remote.Menu.setApplicationMenu(contextMenu);
 
-	contextMenu.getMenuItemById('removeShortcut').enabled = false;
-	contextMenu.getMenuItemById('setShortcut').enabled = false;
+	let groupMenu = contextMenu.getMenuItemById('group');
+	for (const key in groups) {
+		console.log(key);
+		if (Object.hasOwnProperty.call(groups, key)) {
+			const group = groups[key];
+			groupMenu.submenu.append(
+				new remote.MenuItem({
+					label: group.name,
+					id: key,
+					type: 'checkbox',
+					click() {
+						addOrRemoveFileFromGroup(key, _currentCardId);
+					},
+				})
+			);
+		}
+	}
 
 	document.addEventListener('contextmenu', function (e) {
 		contextMenu.popup(BrowserWindow.getFocusedWindow());
 	});
+
+	contextMenu.addListener('menu-will-show', (event) => {
+		if (_currentCardId) {
+			contextMenu.getMenuItemById('group').enabled = true;
+			setGroupContextMenusCheckedState(_currentCardId);
+		} else {
+			contextMenu.getMenuItemById('group').enabled = false;
+		}
+	});
+
+	// disable all card specific options at init
+	disableCardContextMenus();
+	disableGroupContextMenus();
 }
 
 function openFile() {
@@ -774,11 +908,10 @@ function addFilesFromPaths(filePaths) {
 		do {
 			cardID = ID();
 		} while (cardID in data);
-		var cardname = path.replace(/^.*[\\\/]/, '').split('.')[0];
-		cardname = cardname.replace(/-|_|\+|\* /g, ' ');
+		var cardname = getNameFromPath(path);
 
 		let newFile = {
-			cardID: cardID,
+			id: cardID,
 			name: cardname,
 			path: path,
 			volume: 1,
@@ -789,6 +922,10 @@ function addFilesFromPaths(filePaths) {
 		data[cardID] = newFile;
 
 		createcard(cardID, cardname, path, newFile.volume, newFile.color);
+
+		if (_viewMode == ViewMode.GroupContent && _currentFilterGroupId) {
+			addFileToGroup(_currentFilterGroupId, cardID);
+		}
 	});
 
 	if (_autosave) writeSettingsJSON();
@@ -866,6 +1003,12 @@ function getExtension(path) {
 		return ''; //  `.` not found (-1) or comes first (0)
 
 	return basename.slice(pos + 1); // extract extension ignoring `.`
+}
+
+function getNameFromPath(path) {
+	var cardname = path.replace(/^.*[\\\/]/, '').split('.')[0];
+	cardname = cardname.replace(/-|_|\+|\* /g, ' ');
+	return cardname;
 }
 
 function rename(cardID) {
@@ -995,6 +1138,8 @@ function enableCardContextMenus() {
 	contextMenu.getMenuItemById('removeShortcut').enabled = true;
 	contextMenu.getMenuItemById('rename').enabled = true;
 	contextMenu.getMenuItemById('color').enabled = true;
+	contextMenu.getMenuItemById('group').enabled = true;
+	if (_currentFilterGroupId) contextMenu.getMenuItemById('removeFromGroup').enabled = true;
 }
 
 function disableCardContextMenus() {
@@ -1002,4 +1147,246 @@ function disableCardContextMenus() {
 	contextMenu.getMenuItemById('removeShortcut').enabled = false;
 	contextMenu.getMenuItemById('rename').enabled = false;
 	contextMenu.getMenuItemById('color').enabled = false;
+	contextMenu.getMenuItemById('group').enabled = false;
+	contextMenu.getMenuItemById('removeFromGroup').enabled = false;
+}
+
+function createGroup(cardId = undefined) {
+	prompt({
+		title: 'Groupname',
+		label: 'New group name:',
+		value: 'Group name',
+		type: 'input',
+		height: 180,
+	})
+		.then((value) => {
+			if (value && value.length > 0) {
+				let groupId = ID();
+				let group = {
+					name: value,
+					files: [],
+				};
+
+				groups[groupId] = group;
+				let groupMenu = contextMenu.getMenuItemById('group');
+				groupMenu.submenu.append(
+					new remote.MenuItem({
+						label: value,
+						id: groupId,
+						click() {
+							addFileToGroup(groupId, _currentCardId);
+						},
+					})
+				);
+
+				if (cardId) {
+					// add file to the newly created group
+					groups[groupId].files.push(cardId);
+				}
+
+				createGroupCard(groupId, value);
+
+				if (_viewMode != ViewMode.GroupContent) setViewMode(ViewMode.GroupContent, groupId);
+			}
+		})
+		.catch(console.error);
+}
+
+function removeGroup(groupId) {
+	if (groupId in groups) {
+		let groupcard = document.getElementById(groupId);
+		if (groupcard) groupcard.remove();
+		delete groups[groupId];
+		// rebuild the context menu to remove the invalid group submenus
+		buildContextMenu();
+	}
+}
+
+function addOrRemoveFileFromGroup(groupId, cardId) {
+	if (groupId in groups) {
+		if (groups[groupId].files.includes(cardId)) {
+			removeFileFromGroup(groupId, cardId);
+		} else {
+			addFileToGroup(groupId, cardId);
+		}
+	}
+}
+
+function addFileToGroup(groupId, cardId) {
+	if (groupId in groups) {
+		let files = groups[groupId].files;
+
+		if (!files.includes(cardId)) {
+			groups[groupId].files.push(cardId);
+			updateGroupCardDisplay(groupId);
+		}
+	}
+}
+
+function removeFileFromGroup(groupId, cardId) {
+	if (groupId in groups) {
+		let files = groups[groupId].files;
+
+		let index = files.indexOf(cardId);
+		if (index != -1) {
+			files.splice(index, 1);
+			// update cards if one was removed from the group
+			if (_viewMode == ViewMode.GroupContent) filterCardsByGroupId(groupId);
+			updateGroupCardDisplay(groupId);
+		}
+	}
+}
+
+function createGroupCard(groupId, name) {
+	let groupwrapper = document.getElementById('groupwrapper');
+
+	let groupitem = document.createElement('div');
+	groupwrapper.append(groupitem);
+	groupitem.setAttribute('class', 'groupitem');
+	groupitem.setAttribute('id', groupId);
+	groupitem.style.backgroundColor =
+		playercardColors[Math.floor(Math.random() * playercardColors.length)];
+
+	groupitem.onclick = function (event) {
+		setViewMode(ViewMode.GroupContent, groupId);
+	};
+
+	groupitem.onmouseenter = function (event) {
+		_currentGroupId = groupId;
+		enableGroupContextMenus();
+	};
+
+	groupitem.onmouseleave = function (event) {
+		_currentGroupId = undefined;
+		disableGroupContextMenus();
+	};
+
+	let groupnametext = document.createElement('p');
+	groupitem.append(groupnametext);
+	groupnametext.setAttribute('class', 'groupnamewrappertext');
+	groupnametext.setAttribute('id', groupId + 'nametext');
+	groupnametext.innerHTML = name;
+
+	let elementCount = document.createElement('p');
+	groupitem.append(elementCount);
+	elementCount.setAttribute('class', 'groupelementcount');
+	elementCount.setAttribute('id', groupId + 'elementCount');
+	elementCount.innerHTML = groups[groupId].files.length;
+}
+
+function renameGroup(groupId) {
+	prompt({
+		title: 'Groupname',
+		label: 'New group name:',
+		value: groupId in groups ? groups[groupId].name : 'Group name',
+		type: 'input',
+		height: 180,
+	})
+		.then((value) => {
+			if (value && value.length > 0) {
+				if (groupId in groups) {
+					groups[groupId].name = value;
+					updateGroupCardDisplay(groupId);
+					// rebuild the context menu to update the group texts
+					buildContextMenu();
+				}
+			}
+		})
+		.catch(console.error);
+}
+
+function updateGroupCardDisplay(groupId) {
+	let nameElement = document.getElementById(groupId + 'nametext');
+	if (nameElement) nameElement.innerHTML = groups[groupId].name;
+	let countElement = document.getElementById(groupId + 'elementCount');
+	if (countElement) countElement.innerHTML = groups[groupId].files.length;
+}
+
+function setViewMode(viewMode, groupId = undefined) {
+	let groupwrapper = document.getElementById('groupwrapper');
+	let cardwrapper = document.getElementById('cardwidget');
+	let groupheader = document.getElementById('groupheader');
+	let groupheadername = document.getElementById('groupheadername');
+
+	switch (viewMode) {
+		case ViewMode.Default: {
+			_viewMode = ViewMode.Default;
+			_currentFilterGroupId = undefined;
+			groupwrapper.style.display = 'none';
+			cardwrapper.style.display = 'flex';
+			groupheader.style.display = 'none';
+			setCardDisplay('flex');
+			document.getElementById('fav-icon').setAttribute('class', 'fas fa-star');
+			break;
+		}
+		case ViewMode.GroupOverview: {
+			_viewMode = ViewMode.GroupOverview;
+			_currentFilterGroupId = undefined;
+			groupwrapper.style.display = 'flex';
+			cardwrapper.style.display = 'none';
+			groupheader.style.display = 'block';
+			groupheadername.innerHTML = 'Groups';
+			document.getElementById('fav-icon').setAttribute('class', 'fas fa-compact-disc');
+			break;
+		}
+		case ViewMode.GroupContent: {
+			if (groupId != undefined) {
+				_viewMode = ViewMode.GroupContent;
+				_currentFilterGroupId = groupId;
+
+				groupwrapper.style.display = 'none';
+				groupheader.style.display = 'block';
+				cardwrapper.style.display = 'flex';
+				groupheadername.innerHTML = groups[groupId].name;
+				document.getElementById('fav-icon').setAttribute('class', 'fas fa-compact-disc');
+				filterCardsByGroupId(groupId);
+			}
+			break;
+		}
+	}
+}
+
+function filterCardsByGroupId(groupId) {
+	const group = groups[groupId];
+	setCardDisplay('none');
+
+	for (let i = 0; i < group.files.length; i++) {
+		let playercard = document.getElementById(group.files[i]);
+		if (playercard) {
+			playercard.style.display = 'flex';
+		}
+	}
+}
+
+function setCardDisplay(display = 'none') {
+	let files = document.getElementsByClassName('playercard');
+	for (let i = 0; i < files.length; i++) {
+		const element = files[i];
+		element.style.display = display;
+	}
+}
+
+function enableGroupContextMenus() {
+	contextMenu.getMenuItemById('rename').enabled = true;
+	contextMenu.getMenuItemById('removeGroup').enabled = true;
+}
+
+function disableGroupContextMenus() {
+	contextMenu.getMenuItemById('rename').enabled = false;
+	contextMenu.getMenuItemById('removeGroup').enabled = false;
+}
+
+function setGroupContextMenusCheckedState(cardId) {
+	for (const key in groups) {
+		if (Object.hasOwnProperty.call(groups, key)) {
+			let item = contextMenu.getMenuItemById(key);
+			if (item) {
+				if (groups[key].files.includes(cardId)) {
+					item.checked = true;
+				} else {
+					item.checked = false;
+				}
+			}
+		}
+	}
 }

@@ -4,9 +4,8 @@
         <link rel="stylesheet" href="css/stylesheet.css">
         <link rel="stylesheet" href="css/checkbox.css">
         <link rel="stylesheet" href="css/searchbar.css">
-        <!-- <script src="https://www.titusstudios.net/data/static/js/jquery/3.4.1/jquery.min.js"></script> -->
+        <link rel="stylesheet" href="css/colorpicker.css">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.12.1/css/all.min.css">
-
     </head>
     <body>
         <div class="winctrlcontainer" id="windowcotrolcontainer">
@@ -21,6 +20,9 @@
                     </div>
                     <div id="layout-btn" class="winctrlbuttonlayout">
                         <i id="layout-icon" class="Fas fa-th"></i>
+                    </div>
+                    <div id="fav-btn" class="winctrlbuttonfav">
+                        <i id="fav-icon" class="Fas fa-star"></i>
                     </div>
                     <div id="min-btn" class="winctrlbuttonmin">
                         <i class="Far fa-window-minimize"></i>
@@ -38,36 +40,17 @@
             </div>
         </div>
 
-        <div class="appwidget">
-            <div class="confirmdelete">
-                <div class="confirmdeletetextwrapper">
-                    <div class="confirmdeletetext">
-                        <strong><p>Are you sure you want to Delete this Card?</p></strong>
-                        <div class="confirmdeletesubtext">
-                            <p>This cannot be undone</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="playerwrapper" id="cardwidget">
-                <div class="colorpicker" id="colorpicker">
-                    <!-- <div class="colorpickerbuttons">
-                        <div class="colorpickerok" id="colorpickerok">
-                            <p>Ok</p>
-                        </div> 
-                        <div class="colorpickercancle" id="colorpickercancle">
-                            <p>Cancle</p>
-                        </div> 
-                    </div> -->
-                </div>
-            </div>
+        <div class="groupheader" id="groupheader">
+            <i class="fas fa-arrow-left" id="groupreturnbtn" ></i>
+            <p class="groupheadername" id="groupheadername"></p>
         </div>
-        
+        <div class="playerwrapper" id="cardwidget" layout="default">
+            <div class="colorpicker" id="colorpicker"></div>
+        </div>
+        <div class="groupwrapper" id="groupwrapper"></div>
+
         <footer id="footer">
             <div class="footerwrapper" id="footerwrapper">
-                <!-- <div class="footerline"></div> -->
-
                 <div class="section first">
                     <div class="togglewrapper">
                         <label for="stopsoundtoggle" class="toggle-container">
@@ -84,23 +67,6 @@
                         <span class="toggletext">Autosave</span>
                     </div>
                 </div>
-                <!-- <div class="section second"></div> -->
-
-                <!-- <div class="devbuild">
-                    <i title="You are running a Development Build, bugs may be present." class="fab fa-dev"></i>
-                    <div class="devbuildtext">
-                        <p>You are running a Development Build, bugs may be present.</p>
-                    </div>
-
-                    <div class="copyright">
-                        <p>Copyright © 2020 Titus Studios Media</p>
-                    </div>
-                </div> -->
-
-                <!-- <select name="audio-devices" id="audioDevices"> -->
-                    
-                </select>
-
             </div>
         </footer>
 
