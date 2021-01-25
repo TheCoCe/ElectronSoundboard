@@ -27,7 +27,7 @@ body {
 	/* border-bottom: solid 10px #1d1e23; */
 }
 
-.winctrlcontainer p {
+.winctrlcontainer h1 {
 	opacity: 1;
 	padding: 3px 0 0 8px;
 }
@@ -43,6 +43,7 @@ body {
 	width: fit-content;
 	height: 100%;
 	float: right;
+	user-select: none;
 }
 
 .winctrlbuttonlayout {

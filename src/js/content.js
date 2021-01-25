@@ -123,7 +123,12 @@ function init() {
 	document.getElementById('searchbar').addEventListener('input', (event) => {
 		if (event.target.value != '') {
 			search(event.target.value);
-			document.body.scroll({ top: 0, left: 0, behavior: 'smooth' });
+			if (_viewMode == ViewMode.Default || _viewMode == ViewMode.GroupContent) {
+				document
+					.getElementById('cardwidget')
+					?.scroll({ top: 0, left: 0, behavior: 'smooth' });
+			}
+			// document.body.scroll({ top: 0, left: 0, behavior: 'smooth' });
 			event.target.setAttribute('open', 'true');
 		} else {
 			event.target.setAttribute('open', 'false');
@@ -233,7 +238,12 @@ function loadGroups(obj) {
 					}
 
 					groups[key] = newGroup;
+
 					createGroupCard(key, newGroup.name);
+
+					if (group.hasOwnProperty('background')) {
+						setGroupBackground(key, group.background);
+					}
 				}
 			}
 		}
@@ -371,7 +381,6 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 	var audioID = cardID + 'audio';
 	var timeID = cardID + 'time';
 	var audiosourceID = cardID + 'audiosource';
-	var removeCardFunction = "removeCard('" + cardID + "')";
 	var playercard = document.createElement('div');
 	var shortcutwrapper = document.createElement('div');
 	var shortcutLable = document.createElement('p');
@@ -399,6 +408,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 	playercard.onmouseenter = function () {
 		if (!_registerShortcut) {
 			_currentCardId = playercard.getAttribute('id');
+			console.log('switched');
 			enableCardContextMenus();
 		}
 	};
@@ -408,6 +418,10 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 			_currentCardId = undefined;
 			disableCardContextMenus();
 		}
+	};
+
+	playercard.oncontextmenu = function () {
+		setGroupContextMenusCheckedState(_currentCardId);
 	};
 
 	// audioname
@@ -424,6 +438,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 
 	shortcutwrapper.append(shortcutLable);
 	shortcutLable.setAttribute('class', 'shortcutlable');
+	shortcutLable.classList.add('hidden-element');
 	shortcutLable.setAttribute('id', cardID + 'shortcutLable');
 
 	// controlswrapper
@@ -598,10 +613,10 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 
 		if (!_registerShortcut) {
 			if (!audioelement.paused && audioelement.currentTime < audioelement.duration) {
-				playercard.style.border = 'solid 2px #32d74b';
+				playercard.classList.add('playing');
 				playIcon.setAttribute('class', 'fas fa-pause');
 			} else if (audioelement.currentTime == audioelement.duration || audioelement.paused) {
-				playercard.style.border = '';
+				playercard.classList.remove('playing');
 				playIcon.setAttribute('class', 'fas fa-play');
 			}
 		}
@@ -646,22 +661,18 @@ function setLayout(layout) {
 		switch (layout) {
 			case Layout.Default: {
 				_layout = Layout.Default;
-				playercardcontainer.style.flexFlow = '';
-				playercardcontainer.setAttribute('layout', 'default');
-				var layoutIcon = document.getElementById('layout-icon');
-				if (layoutIcon) {
-					layoutIcon.setAttribute('class', 'Fas fa-th-list');
-				}
+				playercardcontainer.classList.remove('pwlayoutList');
+				playercardcontainer.classList.add('pwlayoutDefault');
+
+				document.getElementById('layout-icon')?.setAttribute('class', 'Fas fa-th-list');
 				break;
 			}
 			case Layout.List: {
 				_layout = Layout.List;
-				playercardcontainer.style.flexFlow = 'column';
-				playercardcontainer.setAttribute('layout', 'column');
-				var layoutIcon = document.getElementById('layout-icon');
-				if (layoutIcon) {
-					layoutIcon.setAttribute('class', 'Fas fa-th');
-				}
+				playercardcontainer.classList.remove('pwlayoutDefault');
+				playercardcontainer.classList.add('pwlayoutList');
+
+				document.getElementById('layout-icon')?.setAttribute('class', 'Fas fa-th');
 				break;
 			}
 			default:
@@ -679,8 +690,7 @@ function handleShortcuts(event) {
 			event.code == 'Delete'
 		) {
 			_registerShortcut = false;
-			var playercard = document.getElementById(_currentCardId);
-			if (playercard) playercard.style.border = '';
+			document.getElementById(_currentCardId)?.classList.remove('shortcut-register');
 		} else if (!Shortcuts.isModifier(event.code) && Shortcuts.isValidShortcutKey(event.code)) {
 			addAudioShortcut(_currentCardId, Shortcuts.createShortcut(event));
 			_registerShortcut = false;
@@ -693,23 +703,23 @@ function handleShortcuts(event) {
 }
 
 function addAudioShortcut(cardID, accelerator) {
-	var playercard = document.getElementById(cardID);
+	let playercard = document.getElementById(cardID);
 	removeAudioShortcut(cardID);
 
 	data[cardID].shortcut = accelerator;
 
-	var audio = document.getElementById(cardID + 'audio');
+	let audio = document.getElementById(cardID + 'audio');
 	if (playercard && audio) {
 		remote.globalShortcut.register(accelerator, () => {
 			audio.currentTime = 0;
 			playAudio(audio);
 		});
-		playercard.style.border = '';
+		playercard.classList.remove('shortcut-register');
 	}
 
-	var shortcutLable = document.getElementById(cardID + 'shortcutLable');
+	let shortcutLable = document.getElementById(cardID + 'shortcutLable');
 	if (shortcutLable) {
-		shortcutLable.style.visibility = 'visible';
+		shortcutLable.classList.remove('hidden-element');
 		shortcutLable.innerHTML = Shortcuts.formatShortcut(accelerator);
 	}
 
@@ -725,11 +735,7 @@ function removeAudioShortcut(cardID) {
 		data[cardID].shortcut = '';
 	}
 
-	var shortcutLable = document.getElementById(cardID + 'shortcutLable');
-	if (shortcutLable) {
-		shortcutLable.style.visibility = 'hidden';
-		shortcutLable.innerHTML = '';
-	}
+	document.getElementById(cardID + 'shortcutLable')?.classList.add('hidden-element');
 
 	if (_autosave) writeSettingsJSON();
 }
@@ -787,10 +793,7 @@ function buildContextMenu() {
 			//accelerator: '',
 			click() {
 				_registerShortcut = true;
-				var playercard = document.getElementById(_currentCardId);
-				if (playercard) {
-					playercard.style.border = 'solid 2px #ffb327';
-				}
+				document.getElementById(_currentCardId)?.classList.add('shortcut-register');
 			},
 		},
 		{
@@ -829,6 +832,26 @@ function buildContextMenu() {
 			},
 		},
 		{
+			label: 'Set Background',
+			id: 'setBackground',
+			//accelerator: '',
+			click() {
+				if (_currentGroupId) {
+					openGroupBackground(_currentGroupId);
+				}
+			},
+		},
+		{
+			label: 'Remove Background',
+			id: 'removeBackground',
+			//accelerator: '',
+			click() {
+				if (_currentGroupId) {
+					removeGroupBackground(_currentGroupId);
+				}
+			},
+		},
+		{
 			label: 'Grouplist',
 			id: 'group',
 			submenu: [],
@@ -863,7 +886,6 @@ function buildContextMenu() {
 	contextMenu.addListener('menu-will-show', (event) => {
 		if (_currentCardId) {
 			contextMenu.getMenuItemById('group').enabled = true;
-			setGroupContextMenusCheckedState(_currentCardId);
 		} else {
 			contextMenu.getMenuItemById('group').enabled = false;
 		}
@@ -872,6 +894,43 @@ function buildContextMenu() {
 	// disable all card specific options at init
 	disableCardContextMenus();
 	disableGroupContextMenus();
+}
+
+function openGroupBackground(groupId) {
+	const files = remote.dialog
+		.showOpenDialog(BrowserWindow.getFocusedWindow(), {
+			properties: ['openFile'],
+			filters: [{ name: 'Image files (*.png)', extensions: ['png'] }],
+		})
+		.then((result) => {
+			if (result.filePaths.length > 0) {
+				let filePath = result.filePaths[0].replace(/\\/g, '/');
+				setGroupBackground(groupId, filePath);
+			}
+		})
+		.catch((err) => {
+			console.log(err);
+		});
+
+	if (!files) return;
+}
+
+function setGroupBackground(groupId, background) {
+	let group = document.getElementById(groupId);
+	if (group) {
+		group.style.backgroundImage = 'url(' + background + ')';
+		groups[groupId].background = background;
+	}
+	if (_autosave) writeSettingsJSON();
+}
+
+function removeGroupBackground(groupId) {
+	let group = document.getElementById(groupId);
+	if (group) {
+		group.style.backgroundImage = '';
+		groups[groupId].background = '';
+	}
+	if (_autosave) writeSettingsJSON();
 }
 
 function openFile() {
@@ -960,7 +1019,7 @@ function pauseAudio(audio) {
 
 function stopAllSounds() {
 	var audioElements = document.getElementsByClassName('audio');
-	console.log('Found ' + audioElements.length + ' audioelements');
+	// console.log('Found ' + audioElements.length + ' audioelements');
 
 	for (let index = 0; index < audioElements.length; index++) {
 		if (!audioElements[index].paused) {
@@ -1041,8 +1100,7 @@ function createColorPicker() {
 		borderColor: '#fff',
 	});
 
-	let colorPicker = document.getElementById('colorpicker');
-	if (colorPicker) colorPicker.style.visibility = 'hidden';
+	document.getElementById('colorpicker')?.classList.add('hidden-element');
 
 	let colorpickerbuttons = document.createElement('div');
 	colorpickerbuttons.setAttribute('class', 'colorpickerbuttons');
@@ -1065,7 +1123,7 @@ function createColorPicker() {
 	let cancle = document.createElement('p');
 	colorpickerbuttons.append(cancle);
 	cancle.setAttribute('class', 'colorpickercancle');
-	cancle.innerHTML = 'Cancle';
+	cancle.innerHTML = 'Cancel';
 	cancle.onclick = (event) => {
 		hideColorPicker();
 	};
@@ -1085,7 +1143,7 @@ function showColorPicker() {
 			cp.color.hexString = data[_colorPickerTarget].color;
 		}
 
-		colorPicker.style.visibility = 'visible';
+		colorPicker.classList.remove('hidden-element');
 
 		let width =
 			window.innerWidth || document.documentElement.clientWidth || document.body.clientWidth;
@@ -1112,16 +1170,12 @@ function showColorPicker() {
 }
 
 function hideColorPicker() {
-	let colorPicker = document.getElementById('colorpicker');
-	if (colorPicker) {
-		colorPicker.style.visibility = 'hidden';
-	}
+	document.getElementById('colorpicker')?.classList.add('hidden-element');
 	_colorPickerTarget = undefined;
 }
 
 function colorPickerVisible() {
-	let colorPicker = document.getElementById('colorpicker');
-	return colorPicker && colorPicker.style.visibility === 'visible' ? true : false;
+	return document.getElementById('colorpicker')?.style.display == 'none' ? true : false;
 }
 
 function setCardColor(cardID, color) {
@@ -1187,6 +1241,8 @@ function createGroup(cardId = undefined) {
 				createGroupCard(groupId, value);
 
 				if (_viewMode != ViewMode.GroupContent) setViewMode(ViewMode.GroupContent, groupId);
+
+				if (_autosave) writeSettingsJSON();
 			}
 		})
 		.catch(console.error);
@@ -1199,6 +1255,7 @@ function removeGroup(groupId) {
 		delete groups[groupId];
 		// rebuild the context menu to remove the invalid group submenus
 		buildContextMenu();
+		if (_autosave) writeSettingsJSON();
 	}
 }
 
@@ -1220,6 +1277,8 @@ function addFileToGroup(groupId, cardId) {
 			groups[groupId].files.push(cardId);
 			updateGroupCardDisplay(groupId);
 		}
+
+		if (_autosave) writeSettingsJSON();
 	}
 }
 
@@ -1234,6 +1293,8 @@ function removeFileFromGroup(groupId, cardId) {
 			if (_viewMode == ViewMode.GroupContent) filterCardsByGroupId(groupId);
 			updateGroupCardDisplay(groupId);
 		}
+
+		if (_autosave) writeSettingsJSON();
 	}
 }
 
@@ -1290,6 +1351,8 @@ function renameGroup(groupId) {
 					// rebuild the context menu to update the group texts
 					buildContextMenu();
 				}
+
+				if (_autosave) writeSettingsJSON();
 			}
 		})
 		.catch(console.error);
@@ -1312,19 +1375,28 @@ function setViewMode(viewMode, groupId = undefined) {
 		case ViewMode.Default: {
 			_viewMode = ViewMode.Default;
 			_currentFilterGroupId = undefined;
-			groupwrapper.style.display = 'none';
-			cardwrapper.style.display = 'flex';
-			groupheader.style.display = 'none';
-			setCardDisplay('flex');
+			groupwrapper.classList.add('hidden-element');
+			cardwrapper.classList.remove('hidden-element');
+			groupheader.classList.add('hidden-element');
+
+			// groupwrapper.style.display = 'none';
+			// cardwrapper.style.display = 'flex';
+			// groupheader.style.display = 'none';
+			setCardDisplay(false);
 			document.getElementById('fav-icon').setAttribute('class', 'fas fa-star');
 			break;
 		}
 		case ViewMode.GroupOverview: {
 			_viewMode = ViewMode.GroupOverview;
 			_currentFilterGroupId = undefined;
-			groupwrapper.style.display = 'flex';
-			cardwrapper.style.display = 'none';
-			groupheader.style.display = 'block';
+
+			groupwrapper.classList.remove('hidden-element');
+			cardwrapper.classList.add('hidden-element');
+			groupheader.classList.remove('hidden-element');
+
+			// groupwrapper.style.display = 'flex';
+			// cardwrapper.style.display = 'none';
+			// groupheader.style.display = 'block';
 			groupheadername.innerHTML = 'Groups';
 			document.getElementById('fav-icon').setAttribute('class', 'fas fa-compact-disc');
 			break;
@@ -1334,9 +1406,13 @@ function setViewMode(viewMode, groupId = undefined) {
 				_viewMode = ViewMode.GroupContent;
 				_currentFilterGroupId = groupId;
 
-				groupwrapper.style.display = 'none';
-				groupheader.style.display = 'block';
-				cardwrapper.style.display = 'flex';
+				groupwrapper.classList.add('hidden-element');
+				groupheader.classList.remove('hidden-element');
+				cardwrapper.classList.remove('hidden-element');
+
+				// groupwrapper.style.display = 'none';
+				// groupheader.style.display = 'block';
+				// cardwrapper.style.display = 'flex';
 				groupheadername.innerHTML = groups[groupId].name;
 				document.getElementById('fav-icon').setAttribute('class', 'fas fa-compact-disc');
 				filterCardsByGroupId(groupId);
@@ -1348,32 +1424,35 @@ function setViewMode(viewMode, groupId = undefined) {
 
 function filterCardsByGroupId(groupId) {
 	const group = groups[groupId];
-	setCardDisplay('none');
+	setCardDisplay(true);
 
 	for (let i = 0; i < group.files.length; i++) {
-		let playercard = document.getElementById(group.files[i]);
-		if (playercard) {
-			playercard.style.display = 'flex';
-		}
+		document.getElementById(group.files[i])?.classList.remove('hidden-element');
 	}
 }
 
-function setCardDisplay(display = 'none') {
+function setCardDisplay(hidden = true) {
 	let files = document.getElementsByClassName('playercard');
 	for (let i = 0; i < files.length; i++) {
 		const element = files[i];
-		element.style.display = display;
+		if (hidden) element.classList.add('hidden-element');
+		else element.classList.remove('hidden-element');
+		// element.style.display = display;
 	}
 }
 
 function enableGroupContextMenus() {
 	contextMenu.getMenuItemById('rename').enabled = true;
 	contextMenu.getMenuItemById('removeGroup').enabled = true;
+	contextMenu.getMenuItemById('setBackground').enabled = true;
+	contextMenu.getMenuItemById('removeBackground').enabled = true;
 }
 
 function disableGroupContextMenus() {
 	contextMenu.getMenuItemById('rename').enabled = false;
 	contextMenu.getMenuItemById('removeGroup').enabled = false;
+	contextMenu.getMenuItemById('setBackground').enabled = false;
+	contextMenu.getMenuItemById('removeBackground').enabled = false;
 }
 
 function setGroupContextMenusCheckedState(cardId) {
