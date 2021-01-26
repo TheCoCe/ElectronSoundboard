@@ -1,8 +1,8 @@
 const MSICreator = require('electron-wix-msi');
 const path = require('path');
 
-const APP_DIR = path.resolve(__dirname, './soundboard-win32-x64');
-const OUT_DIR = path.resolve(__dirname, './windows_installer');
+const APP_DIR = path.resolve(__dirname, 'builds/soundboard-win32-x64');
+const OUT_DIR = path.resolve(__dirname, 'builds/windows_installer');
 
 // Step 1: Instantiate the MSICreator
 const msiCreator = new MSICreator.MSICreator({
@@ -12,8 +12,9 @@ const msiCreator = new MSICreator.MSICreator({
 	description: 'A simple, little, electron-based soundboard to play sounds via click or hotkey',
 	exe: 'Soundboard',
 	name: 'Soundboard',
-	author: 'TheCoce',
+	manufacturer: 'TheCoce',
 	version: '0.2.0',
+	appIconPath: 'src/icons/soundboard.ico',
 
 	ui: {
 		chooseDirectory: true,
