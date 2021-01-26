@@ -93,9 +93,13 @@ out/
 
 # ignore builds
 soundboard-win32-x64/
+Builds/
 
 # ignore settings file
 src/settings.json
 
 # ignore windows installer folder
 windows_installer/
+
+# ignore asset files
+Assets/
