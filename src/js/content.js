@@ -408,7 +408,7 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 	playercard.onmouseenter = function () {
 		if (!_registerShortcut) {
 			_currentCardId = playercard.getAttribute('id');
-			console.log('switched');
+			// console.log('switched');
 			enableCardContextMenus();
 		}
 	};
@@ -1261,7 +1261,6 @@ function removeGroup(groupId) {
 }
 
 function addOrRemoveFileFromGroup(groupId, cardId) {
-	console.log('AddOrRemoveFileFromGroup');
 	if (groupId in groups) {
 		if (groups[groupId].files.includes(cardId)) {
 			removeFileFromGroup(groupId, cardId);
