@@ -1227,8 +1227,9 @@ function createGroup(cardId = undefined) {
 					new remote.MenuItem({
 						label: value,
 						id: groupId,
+						type: 'checkbox',
 						click() {
-							addFileToGroup(groupId, _currentCardId);
+							addOrRemoveFileFromGroup(groupId, _currentCardId);
 						},
 					})
 				);
@@ -1260,6 +1261,7 @@ function removeGroup(groupId) {
 }
 
 function addOrRemoveFileFromGroup(groupId, cardId) {
+	console.log('AddOrRemoveFileFromGroup');
 	if (groupId in groups) {
 		if (groups[groupId].files.includes(cardId)) {
 			removeFileFromGroup(groupId, cardId);
@@ -1456,9 +1458,11 @@ function disableGroupContextMenus() {
 }
 
 function setGroupContextMenusCheckedState(cardId) {
+	const curContextMenu = remote.Menu.getApplicationMenu();
+
 	for (const key in groups) {
 		if (Object.hasOwnProperty.call(groups, key)) {
-			let item = contextMenu.getMenuItemById(key);
+			let item = curContextMenu.getMenuItemById(key);
 			if (item) {
 				if (groups[key].files.includes(cardId)) {
 					item.checked = true;
