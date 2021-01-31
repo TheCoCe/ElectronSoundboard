@@ -1,7 +1,8 @@
 import * as Shortcuts from './shortcuts.js';
+import * as Alerts from './alerts.js';
 
 const { BrowserWindow } = require('electron').remote;
-const { ipcRenderer, app, remote } = require('electron');
+const { ipcRenderer, app, remote, Menu, globalShortcut } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const jsonPath = path.join(__dirname, 'settings.json');
@@ -14,7 +15,7 @@ const Layout = {
 	Default: 'Default',
 	List: 'List',
 };
-var _layout = Layout.Default;
+let _layout = Layout.Default;
 
 const ViewMode = {
 	GroupOverview: 'GroupOverview',
@@ -23,28 +24,33 @@ const ViewMode = {
 };
 let _viewMode = ViewMode.Default;
 
+const alerts = new Alerts.AlertsManager();
+
 let contextMenu = undefined;
-var _allowMultipleSoundsPlaying = true;
-var _autosave = true;
-var _currentCardId = undefined;
-var _registerShortcut = false;
+let _allowMultipleSoundsPlaying = true;
+let _autosave = true;
+
+let _currentCardId = undefined;
+let _registerShortcut = false;
 let _currentGroupId = undefined;
 let _currentFilterGroupId = undefined;
-var cp;
+
+let cp;
 const colorPickerSize = {
 	width: 200,
 	widthWithPadding: 220,
 };
 let _colorPickerTarget = undefined;
-var mousePos = {
+
+let mousePos = {
 	x: 0,
 	y: 0,
 };
 
 let groups = {};
-var data = {};
+let data = {};
 
-var ID = function () {
+let ID = function () {
 	return '_' + Math.random().toString(36).substr(2, 9);
 };
 
@@ -73,7 +79,6 @@ function init() {
 			writeSettingsJSON();
 			loadSettings();
 		} else {
-			console.log('bla');
 			console.log(err.message);
 		}
 
@@ -103,7 +108,7 @@ function init() {
 			setViewMode(ViewMode.Default);
 		}
 	});
-	document.addEventListener('keydown', handleShortcuts);
+
 	document.getElementById('stopsoundtoggle').addEventListener('change', (event) => {
 		if (event.target.checked) {
 			_allowMultipleSoundsPlaying = true;
@@ -128,7 +133,7 @@ function init() {
 					.getElementById('cardwidget')
 					?.scroll({ top: 0, left: 0, behavior: 'smooth' });
 			}
-			// document.body.scroll({ top: 0, left: 0, behavior: 'smooth' });
+
 			event.target.setAttribute('open', 'true');
 		} else {
 			event.target.setAttribute('open', 'false');
@@ -154,6 +159,14 @@ function init() {
 		}
 	});
 
+	document.onmousedown = function (event) {
+		if (event.button == 2 && !_registerShortcut) {
+			// console.log('cleared cardId');
+			_currentCardId = undefined;
+			disableCardContextMenus();
+		}
+	};
+
 	setViewMode(ViewMode.Default);
 }
 
@@ -167,6 +180,18 @@ function loadSettings(obj = undefined) {
 		}
 		if (obj.settings.autosave != undefined) {
 			_autosave = obj.settings.autosave;
+		}
+		if (obj.settings.width != undefined && obj.settings.height != undefined) {
+			remote.BrowserWindow.getFocusedWindow().setSize(
+				obj.settings.width,
+				obj.settings.height
+			);
+		}
+		if (obj.settings.posX != undefined && obj.settings.posY != undefined) {
+			remote.BrowserWindow.getFocusedWindow().setPosition(
+				obj.settings.posX,
+				obj.settings.posY
+			);
 		}
 	} else {
 		console.warn(
@@ -250,30 +275,35 @@ function loadGroups(obj) {
 	}
 }
 
-function writeSettingsJSON() {
+export function writeSettingsJSON(sync = false) {
 	try {
 		var obj = {
-			settings: {
-				layout: _layout,
-				allowMultipleSoundsPlaying: _allowMultipleSoundsPlaying,
-				autosave: _autosave,
-			},
+			settings: '',
 			files: [],
 			groups: [],
 		};
 
+		obj.settings = serializeSettings();
 		obj.files = serializeAudioFiles();
 		obj.groups = serializeGroups();
 
 		const new_settings_json = JSON.stringify(obj);
 
-		fs.writeFile(jsonPath, new_settings_json, 'utf8', (err) => {
-			if (err) {
+		if (sync) {
+			try {
+				fs.writeFileSync(jsonPath, new_settings_json, 'utf8');
+			} catch (err) {
 				console.log(`Error writing savefile: ${err}`);
-			} else {
-				console.log(`Savefile written successfully!`);
 			}
-		});
+		} else {
+			fs.writeFile(jsonPath, new_settings_json, 'utf8', (err) => {
+				if (err) {
+					console.log(`Error writing savefile: ${err}`);
+				} else {
+					console.log(`Savefile written successfully!`);
+				}
+			});
+		}
 	} catch (error) {
 		console.log(error);
 	}
@@ -306,21 +336,37 @@ function serializeGroups() {
 	return groups;
 }
 
-function removeCard(cardId) {
-	var cardElement = document.getElementById(cardId);
-	if (cardElement) cardElement.remove();
+function serializeSettings() {
+	let bounds = remote.getCurrentWindow().getBounds();
 
+	let settings = {
+		layout: _layout,
+		allowMultipleSoundsPlaying: _allowMultipleSoundsPlaying,
+		autosave: _autosave,
+		width: bounds.width,
+		height: bounds.height,
+		posX: bounds.x,
+		posY: bounds.y,
+	};
+
+	return settings;
+}
+
+function removeCard(cardId) {
 	// delete file from groups
 	for (const key in groups) {
 		if (Object.hasOwnProperty.call(groups, key)) {
 			const group = groups[key];
-			for (let index = 0; index < group.files.length; index++) {
-				if (group.files[index] === cardId) {
-					group.files.splice(index, 1);
-				}
+			let idx = group.files.indexOf(cardId);
+			if (idx != -1) {
+				group.files.splice(idx, 1);
+				updateGroupCardDisplay(key);
 			}
 		}
 	}
+
+	var cardElement = document.getElementById(cardId);
+	if (cardElement) cardElement.remove();
 
 	if (cardId in data) delete data[cardId];
 
@@ -405,23 +451,13 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 			? color
 			: playercardColors[Math.floor(Math.random() * playercardColors.length)];
 
-	playercard.onmouseenter = function () {
-		if (!_registerShortcut) {
-			_currentCardId = playercard.getAttribute('id');
-			// console.log('switched');
-			enableCardContextMenus();
-		}
-	};
-
-	playercard.onmouseleave = function () {
-		if (!_registerShortcut) {
-			_currentCardId = undefined;
-			disableCardContextMenus();
-		}
-	};
-
 	playercard.oncontextmenu = function () {
-		setGroupContextMenusCheckedState(_currentCardId);
+		if (!_registerShortcut) {
+			_currentCardId = cardID;
+			// console.log(`Context cardID: ${cardID}`);
+			enableCardContextMenus();
+			setGroupContextMenusCheckedState(_currentCardId);
+		}
 	};
 
 	// audioname
@@ -530,13 +566,13 @@ function createcard(cardID, filename, audiopath, volume = 1.0, color = undefined
 
 	volumeIcon.onclick = function (e) {
 		if (audioelement.volume == 0) {
-			console.log('volume = 0 event');
+			// console.log('volume = 0 event');
 			var volume = volumecontrolslider.getAttribute('volume');
 			audioelement.volume = volume;
 			volumecontrolslider.value = volume * 100;
 			volumeIcon.setAttribute('class', 'fa fa-volume-down');
 		} else {
-			console.log('other event');
+			// console.log('other event');
 			var volume = audioelement.volume;
 			volumecontrolslider.setAttribute('volume', volume);
 			audioelement.volume = 0;
@@ -691,14 +727,14 @@ function handleShortcuts(event) {
 		) {
 			_registerShortcut = false;
 			document.getElementById(_currentCardId)?.classList.remove('shortcut-register');
+			document.removeEventListener('keydown', handleShortcuts);
+			alerts.clearMessage();
 		} else if (!Shortcuts.isModifier(event.code) && Shortcuts.isValidShortcutKey(event.code)) {
 			addAudioShortcut(_currentCardId, Shortcuts.createShortcut(event));
 			_registerShortcut = false;
+			document.removeEventListener('keydown', handleShortcuts);
+			alerts.clearMessage();
 		}
-	} else if (event.code == 'KeyS' && event.ctrlKey) {
-		writeSettingsJSON();
-	} else if (event.code == 'KeyO' && event.ctrlKey) {
-		openFile();
 	}
 }
 
@@ -711,8 +747,10 @@ function addAudioShortcut(cardID, accelerator) {
 	let audio = document.getElementById(cardID + 'audio');
 	if (playercard && audio) {
 		remote.globalShortcut.register(accelerator, () => {
-			audio.currentTime = 0;
-			playAudio(audio);
+			if (!_registerShortcut) {
+				audio.currentTime = 0;
+				playAudio(audio);
+			}
 		});
 		playercard.classList.remove('shortcut-register');
 	}
@@ -793,7 +831,13 @@ function buildContextMenu() {
 			//accelerator: '',
 			click() {
 				_registerShortcut = true;
+				disableCardContextMenus();
 				document.getElementById(_currentCardId)?.classList.add('shortcut-register');
+				document.addEventListener('keydown', handleShortcuts);
+				alerts.showPersistentMessage(
+					Alerts.AlertType.Warning,
+					"Waiting for Shortcut... <em>'Esc'</em> to cancel"
+				);
 			},
 		},
 		{
@@ -863,7 +907,6 @@ function buildContextMenu() {
 
 	let groupMenu = contextMenu.getMenuItemById('group');
 	for (const key in groups) {
-		console.log(key);
 		if (Object.hasOwnProperty.call(groups, key)) {
 			const group = groups[key];
 			groupMenu.submenu.append(
@@ -880,10 +923,13 @@ function buildContextMenu() {
 	}
 
 	document.addEventListener('contextmenu', function (e) {
-		contextMenu.popup(BrowserWindow.getFocusedWindow());
+		if (!_registerShortcut) {
+			contextMenu.popup(BrowserWindow.getFocusedWindow());
+		}
 	});
 
 	contextMenu.addListener('menu-will-show', (event) => {
+		// console.log('menu-will-show cardID: ' + _currentCardId);
 		if (_currentCardId) {
 			contextMenu.getMenuItemById('group').enabled = true;
 		} else {
@@ -1234,14 +1280,19 @@ function createGroup(cardId = undefined) {
 					})
 				);
 
+				createGroupCard(groupId, value);
+				alerts.info(`Successfully created Group '${value}'`, 2000);
+
 				if (cardId) {
 					// add file to the newly created group
 					groups[groupId].files.push(cardId);
+					let cardName = data[cardId] ? data[cardId].name : 'file';
+					alerts.info(
+						`Added <em>'${cardName}'</em> to <em>'${groups[groupId].name}'</em>`,
+						2000
+					);
 				}
-
-				createGroupCard(groupId, value);
-
-				if (_viewMode != ViewMode.GroupContent) setViewMode(ViewMode.GroupContent, groupId);
+				// if (_viewMode != ViewMode.GroupContent) setViewMode(ViewMode.GroupContent, groupId);
 
 				if (_autosave) writeSettingsJSON();
 			}
@@ -1277,6 +1328,14 @@ function addFileToGroup(groupId, cardId) {
 		if (!files.includes(cardId)) {
 			groups[groupId].files.push(cardId);
 			updateGroupCardDisplay(groupId);
+
+			let cardName = data[cardId] ? data[cardId].name : 'file';
+			alerts.info(`Added <em>'${cardName}'</em> to <em>'${groups[groupId].name}'</em>`, 2000);
+		} else {
+			alerts.warn(
+				`Group <em>'${groups[groupId].name}'</em> already includes this audio file`,
+				2000
+			);
 		}
 
 		if (_autosave) writeSettingsJSON();
@@ -1293,6 +1352,7 @@ function removeFileFromGroup(groupId, cardId) {
 			// update cards if one was removed from the group
 			if (_viewMode == ViewMode.GroupContent) filterCardsByGroupId(groupId);
 			updateGroupCardDisplay(groupId);
+			alerts.info(`Removed audio file from '${groups[groupId].name}'`, 2000);
 		}
 
 		if (_autosave) writeSettingsJSON();
@@ -1471,4 +1531,8 @@ function setGroupContextMenusCheckedState(cardId) {
 			}
 		}
 	}
+}
+
+export function getAutosaveEnabled() {
+	return _autosave;
 }

@@ -5,7 +5,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "package-win": "electron-packager . --overwrite --asar=false --platform=win32 --arch=x64 --out=builds --icon=src/icons/soundboard.ico --ignore=Assets --ignore=.vscode --ignore=.gitignore --ignore=build_installer.js --ignore=windows_installer --ignore=builds"
+    "package-win": "electron-packager . --overwrite --asar=false --platform=win32 --arch=x64 --out=builds --icon=src/icons/soundboard.ico --ignore=Assets --ignore=.vscode --ignore=.gitignore --ignore=build_installer.js --ignore=windows_installer --ignore=builds --ignore=src/settings.json"
   },
   "author": "TheCoCe",
   "license": "ISC",

@@ -5,7 +5,7 @@ let mainWindow;
 
 const createWindow = () => {
 	mainWindow = new BrowserWindow({
-		width: 700,
+		width: 2000,
 		height: 600,
 		minWidth: 700,
 		minHeight: 300,
@@ -28,7 +28,7 @@ const createWindow = () => {
 		mainWindow.show();
 	});
 
-	// mainWindow.webContents.openDevTools();
+	mainWindow.webContents.openDevTools();
 };
 
 app.on('ready', () => {

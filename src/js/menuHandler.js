@@ -1,3 +1,4 @@
+import * as content from './content.js';
 const { BrowserWindow } = require('electron').remote;
 
 function init() {
@@ -20,6 +21,7 @@ function init() {
 	// Close app
 	document.getElementById('close-btn').addEventListener('click', (e) => {
 		var window = BrowserWindow.getFocusedWindow();
+		if (content.getAutosaveEnabled()) content.writeSettingsJSON(true);
 		window.close();
 	});
 }

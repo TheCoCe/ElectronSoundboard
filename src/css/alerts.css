@@ -1,0 +1,127 @@
+.alert {
+	font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+
+	background: #e6e6e6;
+	padding: 20px;
+	padding-left: 30px;
+	padding-right: 10px;
+	min-width: 100px;
+	max-width: fit-content;
+	position: absolute;
+	left: 0;
+	right: 0;
+	margin-left: auto;
+	margin-right: auto;
+	top: 0%;
+
+	border-radius: 4px;
+	border-left: 8px solid #fff;
+	border-right: 8px solid #fff;
+
+	overflow: hidden;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.alert.info {
+	background: #afff9b;
+	border-left: 8px solid #52ff02;
+	border-right: 8px solid #52ff02;
+}
+.alert.warning {
+	background: #ffdb9b;
+	border-left: 8px solid #ffa502;
+	border-right: 8px solid #ffa502;
+}
+.alert.error {
+	background: #ffb29b;
+	border-left: 8px solid #ff4a02;
+	border-right: 8px solid #ff4a02;
+}
+
+.alert.showAlert {
+	opacity: 1;
+}
+
+.alert.show {
+	animation: show_slide 0.5s ease forwards;
+}
+
+@keyframes show_slide {
+	0% {
+		transform: translateY(-100%);
+	}
+	40% {
+		transform: translateY(40%);
+	}
+	80% {
+		transform: translateY(0%);
+	}
+	100% {
+		transform: translateY(5px);
+	}
+}
+
+.alert.hide {
+	animation: hide_slide 0.5s ease forwards;
+}
+
+@keyframes hide_slide {
+	0% {
+		transform: translateY(5px);
+	}
+	40% {
+		transform: translateY(0%);
+	}
+	80% {
+		transform: translateY(40%);
+	}
+	100% {
+		transform: translateY(-100%);
+	}
+}
+
+.alert .fa-info-circle {
+	position: absolute;
+	left: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: #41ce00;
+	font-size: 30px;
+}
+
+.alert .fa-exclamation-circle {
+	position: absolute;
+	left: 10px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: #ce8500;
+	font-size: 30px;
+}
+
+.alert .fa-exclamation-triangle {
+	position: absolute;
+	left: 20px;
+	top: 50%;
+	transform: translateY(-50%);
+	color: #ff4a02;
+	font-size: 30px;
+}
+
+.alert.warning .message {
+	padding: 0 20px;
+	font-size: 18px;
+	color: #ce8500;
+}
+
+.alert.info .message {
+	padding: 0 20px;
+	font-size: 18px;
+	color: #41ce00;
+}
+
+.alert.error .message {
+	padding: 0 20px;
+	font-size: 18px;
+	color: #ff4a02;
+}
