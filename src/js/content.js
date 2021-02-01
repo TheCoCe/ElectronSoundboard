@@ -368,7 +368,10 @@ function removeCard(cardId) {
 	var cardElement = document.getElementById(cardId);
 	if (cardElement) cardElement.remove();
 
-	if (cardId in data) delete data[cardId];
+	if (cardId in data) {
+		removeAudioShortcut(cardId);
+		delete data[cardId];
+	}
 
 	if (_autosave) {
 		writeSettingsJSON();
@@ -765,8 +768,7 @@ function addAudioShortcut(cardID, accelerator) {
 }
 
 function removeAudioShortcut(cardID) {
-	var playercard = document.getElementById(cardID);
-	if (playercard && data[cardID].shortcut.length > 0) {
+	if (data[cardID] && data[cardID].shortcut.length > 0) {
 		if (remote.globalShortcut.isRegistered(data[cardID].shortcut)) {
 			remote.globalShortcut.unregister(data[cardID].shortcut);
 		}
@@ -1286,6 +1288,7 @@ function createGroup(cardId = undefined) {
 				if (cardId) {
 					// add file to the newly created group
 					groups[groupId].files.push(cardId);
+					updateGroupCardDisplay(groupId);
 					let cardName = data[cardId] ? data[cardId].name : 'file';
 					alerts.info(
 						`Added <em>'${cardName}'</em> to <em>'${groups[groupId].name}'</em>`,
